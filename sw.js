@@ -6,11 +6,11 @@
 // - Firebase's own traffic (the database and sign-in) always goes straight to the network. With no signal the page
 //   shows the data it saved on the device last time (garage.html, "saved copy").
 
-const CACHE = "garage-v1";
+const CACHE = "garage-v2";
 const SHELL = [
     "./", "garage.html", "garage-core.js", "garage.webmanifest",
     "../timeclock/tc-core.js", "../timeclock/firebase-config.js",
-    "../timeclock/icon-logo.png", "../timeclock/icon-192.png", "../timeclock/icon-512.png", "../timeclock/icon-maskable-512.png", "../timeclock/favicon.ico"
+    "logo.svg", "favicon-32.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"
 ];
 const LIBS = /^https:\/\/(www\.gstatic\.com\/firebasejs\/|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/)/;
 const WAIT_MS = 4000; // how long to wait for the network before using the saved copy
