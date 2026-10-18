@@ -20,6 +20,7 @@
 //   (added/addedBy: who first saved it and when; at/by: the last change)
 // Read from the time clock:
 //   timeclock/vans/{id}                          the time clock's vans (Admin → Vehicles → Vehicles without GPS)
+//   developer/dispatch_dashboard/drivers         the RouteWatcher vehicles (GPS), when GPS_UNITS_ARE_VEHICLES in garage.html
 //   timeclock/van_reports/{id}                   Vehicle Check reports (problems); Garage adds, fixes and reopens them
 //   timeclock/shifts/{ek}/{id}/oil               the oil check on each shift; Garage marks a missed one as seen
 //   timeclock/oil_plan, timeclock/oil_last       the oil check schedule (edited here) and the last check per vehicle

@@ -38,13 +38,14 @@ One page for everything we know about each vehicle:
   on that device last time. Nothing can be saved until the signal is back. Signing out deletes the copy.
 
 The vehicles are matched **by name only**, never by GPS unit: the GPS units move from vehicle to
-vehicle. Garage lists the vans in the time clock's **Admin → Vehicles → Vehicles without GPS**,
-plus any added here with **+ Add vehicle** (for one drivers don't pick), plus any that still
-have entries after leaving that list (under *No longer in the van list*). "Van 12", "12" and
+vehicle. Garage lists the vehicles in RouteWatcher (GPS) and the vans in the time clock's
+**Admin → Vehicles → Vehicles without GPS** (one vehicle when both have the same name), plus
+any added here with **+ Add vehicle** (for one drivers don't pick), plus any that still have
+entries after leaving that list (under *No longer in the van list*). "Van 12", "12" and
 "Vehicle 12" are one vehicle. **Remove vehicle** hides one in Garage and puts its entries in
 the Trash; it stays on the time clock. A problem or oil check a driver saves under a GPS
 unit's own name (not a vehicle's) shows on the Vehicle checks tab but on no vehicle page.
-To list the GPS units as vehicles too, set `GPS_UNITS_ARE_VEHICLES` in `garage.html` to `true`.
+To leave the RouteWatcher vehicles out, set `GPS_UNITS_ARE_VEHICLES` in `garage.html` to `false`.
 Works on phones and computers.
 
 ## How it fits with the time clock
@@ -70,6 +71,7 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 | `garage/trash/{id}` | `{ at, by, kind, vkey, vname, id, data }`, deleted after 30 days | Garage |
 | `garage/history/{key}/{id}` | `{ at, by, text }` (`_all`: changes for every vehicle) | Garage |
 | `timeclock/vans` | The time clock's vans without GPS (Garage's vehicle list) | Admin panel |
+| `developer/dispatch_dashboard/drivers` | The RouteWatcher vehicles (GPS), read only (Garage's vehicle list) | RouteWatcher |
 | `timeclock/van_reports` | Vehicle Check reports | Drivers and Garage; Garage marks them fixed or reopens them |
 | `timeclock/shifts/{ek}/{id}/oil` | The oil check on each shift | Drivers; Garage marks a missed one as seen |
 | `timeclock/oil_plan`, `timeclock/oil_last` | The oil check schedule and each vehicle's last check | Garage (schedule), drivers (last check) |

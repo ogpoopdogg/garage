@@ -583,9 +583,10 @@
 
         const $ = id => document.getElementById(id);
         const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history" };
-        // The two GPS units move from vehicle to vehicle, so they aren't vehicles: Garage lists the time clock's vans
-        // (Admin → Vehicles → Vehicles without GPS) and the ones added here. true would list the GPS units too.
-        const GPS_UNITS_ARE_VEHICLES = false;
+        // Garage lists the vehicles in RouteWatcher (GPS), the time clock's vans (Admin → Vehicles → Vehicles without GPS)
+        // and the ones added here. Everything is still kept by the vehicle's name, never by a GPS unit.
+        // false would leave the RouteWatcher vehicles out.
+        const GPS_UNITS_ARE_VEHICLES = true;
         const OIL_DAYS = 60;      // a vehicle's page shows the oil checks from the last 60 days (Show older adds 90 more)
         const LOOK_DAYS = 14;     // the Vehicle checks tab shows the last two weeks of oil checks, like the admin Inbox did
         const NEED = ["cats", "garage", "vans", "reports"]; // what has to load before a vehicle can be found
@@ -758,7 +759,7 @@
             sub("oilLast", ref(db, P.oilLast), s => { oilLast = s.val() || {}; });
             sub("employees", ref(db, P.employees), s => { employees = s.val() || {}; syncShiftListeners(); });
             sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
-            if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
+            if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); saveCopySoon(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
             syncHistory();
         }
         $("retryBtn").addEventListener("click", () => {
@@ -819,7 +820,7 @@
                 const names = {};
                 for (const [k, e] of Object.entries(employees)) if (e) names[k] = { name: displayName(e, e.email) };
                 try {
-                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, oilPlans, oilLast, vansRaw, trash, employees: names }));
+                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, oilPlans, oilLast, vansRaw, gpsRaw, trash, employees: names }));
                 } catch (e) { /* full or blocked: just no saved copy */ }
             }, 3000);
         }
@@ -828,7 +829,7 @@
             try { c = JSON.parse(localStorage.getItem(SNAP) || "null"); } catch (e) { c = null; }
             if (!c || c.email !== email || typeof c.at !== "number") return;
             catsRaw = c.catsRaw; cats = g.sortCategories(catsRaw); stored = c.stored || {}; reports = c.reports || {}; oilPlans = c.oilPlans || {};
-            oilLast = c.oilLast || {}; vansRaw = c.vansRaw || {}; trash = c.trash || {}; employees = c.employees || {};
+            oilLast = c.oilLast || {}; vansRaw = c.vansRaw || {}; gpsRaw = c.gpsRaw || null; trash = c.trash || {}; employees = c.employees || {};
             savedCopyAt = c.at;
             syncVehicles();
         }
