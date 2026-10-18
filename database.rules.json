@@ -1,0 +1,97 @@
+{
+  "rules": {
+    "garage": {
+      ".read": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
+      ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
+      "categories": {
+        "$cat": {
+          ".validate": "$cat.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['name'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+          },
+          "order": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "vehicles": {
+        "$vkey": {
+          ".validate": "$vkey.matches(/^[a-z0-9]{1,60}$/)",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+          },
+          "items": {
+            "$id": {
+              ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['cat', 'label'])",
+              "cat": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+              },
+              "label": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+              },
+              "value": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 200"
+              },
+              "part": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 80"
+              },
+              "link": {
+                ".validate": "newData.isString() && newData.val().length <= 500 && (newData.val().beginsWith('https://') || newData.val().beginsWith('http://'))"
+              },
+              "note": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 500"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "by": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "service": {
+            "$id": {
+              ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['day', 'what'])",
+              "day": {
+                ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/)"
+              },
+              "what": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
+              },
+              "km": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
+              },
+              "cost": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
+              },
+              "note": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 500"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "by": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "$other": {
+        ".validate": false
+      }
+    }
+  }
+}
