@@ -1,0 +1,16 @@
+{
+    "id": "/garage/garage.html",
+    "name": "E&C Garage",
+    "short_name": "Garage",
+    "description": "Parts, problems, oil checks and service for each E&C vehicle.",
+    "start_url": "./garage.html",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#0c0e10",
+    "theme_color": "#0c0e10",
+    "icons": [
+        { "src": "../timeclock/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "../timeclock/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "../timeclock/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+}

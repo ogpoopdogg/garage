@@ -8,6 +8,9 @@
     <title>Garage &middot; E&amp;C Courier</title>
     <link rel="icon" href="../timeclock/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="../timeclock/icon-192.png">
+    <link rel="manifest" href="garage.webmanifest">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Garage">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -124,7 +127,8 @@
         }
         .tag.live { color: var(--green); background: rgba(53, 208, 127, 0.1); }
         .tag.warn { color: var(--red); background: rgba(255, 107, 94, 0.1); }
-        .tag.gps { color: var(--yellow); background: rgba(255, 204, 0, 0.09); }
+        .tag.soon { color: var(--orange); background: rgba(255, 159, 67, 0.12); }
+        .tag.own { color: var(--blue); background: rgba(138, 180, 255, 0.1); }
         .tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
         .select, .input, .textarea {
@@ -151,7 +155,25 @@
             padding: 18px; border-radius: 14px; color: var(--dim); background: rgba(255, 255, 255, 0.02); box-shadow: inset 0 0 0 1px var(--line); font-size: 0.92rem;
         }
 
+        /* ---------- No signal ---------- */
+        .offline-bar {
+            margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; font-size: 0.92rem;
+            color: var(--orange); background: rgba(255, 159, 67, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 159, 67, 0.35);
+        }
+        .load-error { padding: 18px; border-radius: 14px; background: rgba(255, 107, 94, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 107, 94, 0.4); margin-bottom: 18px; }
+        .load-error p { margin-bottom: 10px; }
+
         /* ---------- Vehicles ---------- */
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+        .chip {
+            height: 34px; padding: 0 12px; border: 0; border-radius: 17px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.03em;
+            background: var(--asphalt-3); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line);
+        }
+        .chip:hover { color: var(--text); }
+        .chip[aria-pressed="true"] { background: rgba(255, 204, 0, 0.14); color: var(--yellow); box-shadow: inset 0 0 0 1px rgba(255, 204, 0, 0.45); }
+        .chip:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+        .chip .n { color: inherit; opacity: 0.8; }
         .search { position: relative; margin-bottom: 18px; }
         .search svg { position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
         .search .input { width: 100%; height: 48px; padding-left: 42px; font-size: 1.05rem; }
@@ -217,6 +239,10 @@
         .entry .e-reply { margin-top: 6px; color: var(--muted); font-size: 0.85rem; font-style: italic; }
         .entry .e-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
         .entry .e-vehicle { color: var(--yellow); background: none; border: 0; cursor: pointer; font: inherit; font-weight: 600; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+        .hist-line { display: flex; justify-content: space-between; gap: 4px 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
+        .hist-line:first-child { border-top: 0; }
+        .hist-line .muted { font-size: 0.8rem; }
+        .hist-text { overflow-wrap: anywhere; }
         .look-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
 
         /* ---------- Oil check schedule (moved here from the admin panel) ---------- */
@@ -254,6 +280,7 @@
             opacity: 0; pointer-events: none; transition: opacity 0.3s var(--ease-out);
         }
         .modal-backdrop.show { opacity: 1; pointer-events: auto; }
+        #askModal { z-index: 95; }
         .modal {
             width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; border-radius: 20px; padding: 22px;
             background: linear-gradient(180deg, #1b1f23, #141719); box-shadow: 0 0 0 1px var(--shoulder), 0 30px 80px rgba(0, 0, 0, 0.6);
@@ -317,6 +344,7 @@
             <span class="brand-text"><span class="brand-name">E&amp;C Courier</span><span class="brand-sub">Garage</span></span>
         </a>
         <div class="top-right">
+            <button type="button" class="btn sm" id="installBtn" hidden>Install app</button>
             <a class="btn ghost sm admin-link" href="../timeclock/admin.html" id="adminLink" hidden><span class="al-long">Time clock </span>Admin</a>
             <button type="button" class="btn ghost sm" id="signOutBtn" hidden>Sign out</button>
         </div>
@@ -341,6 +369,8 @@
     </main>
 
     <main class="wrap" id="appScreen" hidden>
+        <div class="offline-bar" id="offlineBar" role="status" hidden></div>
+        <div class="load-error" id="loadError" role="alert" hidden><p id="loadErrorText"></p><button type="button" class="btn sm" id="retryBtn">Try again</button></div>
         <nav class="tabs" role="tablist" aria-label="Garage sections" id="tabs">
             <button type="button" class="tab" role="tab" data-tab="vehicles" aria-selected="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V7a1 1 0 0 1 1-1h10v10"/><path d="M14 9h4l3 3.5V16h-7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
@@ -358,18 +388,26 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
                 <span class="tab-text">Categories</span>
             </button>
+            <button type="button" class="tab" role="tab" data-tab="trash" aria-selected="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                <span class="tab-text">Trash</span>
+            </button>
         </nav>
 
         <!-- Vehicles -->
         <section class="panel" id="panel-vehicles" role="tabpanel">
             <div class="panel-head">
                 <div><h1 class="panel-title">Vehicles</h1><p class="panel-sub">Everything we know about each vehicle: parts, problems, oil checks and service.</p></div>
-                <div class="panel-actions"><button type="button" class="btn" id="gpsRefresh">Refresh list</button></div>
+                <div class="panel-actions">
+                    <button type="button" class="btn" id="exportBtn">Export spreadsheet</button>
+                    <button type="button" class="btn primary" id="addVehicleBtn">+ Add vehicle</button>
+                </div>
             </div>
             <div class="search">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                 <input class="input" id="search" type="search" placeholder="Search parts on every vehicle, e.g. H11 or wiper" autocomplete="off" aria-label="Search every vehicle">
             </div>
+            <div class="chips" id="chips" role="group" aria-label="Show"></div>
             <div id="vehicleList"></div>
         </section>
 
@@ -379,7 +417,7 @@
                 <div><h1 class="panel-title">Vehicle checks</h1><p class="panel-sub">Problems drivers reported at Vehicle Check, and oil checks from the last two weeks.</p></div>
             </div>
             <div class="look-grid">
-                <div class="card"><h3>Vehicle problems <span class="tab-count" id="lookVanCount">0</span></h3><p class="hint" style="margin-bottom:12px">Fixed ones stay here, under the open ones.</p><div class="list" id="lookVans"></div></div>
+                <div class="card"><h3>Vehicle problems <span class="tab-count" id="lookVanCount">0</span></h3><p class="hint" style="margin-bottom:12px">Fixed ones stay here, under the open ones. To add one yourself, open the vehicle.</p><div class="list" id="lookVans"></div></div>
                 <div class="card"><h3>Oil checks <span class="tab-count" id="lookOilCount">0</span></h3><p class="hint" style="margin-bottom:12px">Missed checks wait for a Got it. Drivers on the clock who haven't checked yet show too.</p><div class="list" id="lookOil"></div></div>
             </div>
         </section>
@@ -393,6 +431,7 @@
                 <p class="hint" style="margin-bottom:16px">A check counts for the vehicle whoever does it, and the next one is counted from it. If nobody checks a vehicle on one of its days, the next driver who takes it is asked. Shop and "Not driving today" shifts are never asked. Changes save right away.</p>
                 <div class="oil-rows" id="oilRows"></div>
             </div>
+            <div class="card"><h3>Changes</h3><p class="hint" style="margin-bottom:8px">Changes to the schedule for all vehicles, and to the categories.</p><div id="allHistOil"></div></div>
         </section>
 
         <!-- Categories -->
@@ -407,6 +446,15 @@
                     <button type="submit" class="btn primary">Add</button>
                 </form>
             </div>
+            <div class="card"><h3>Changes</h3><p class="hint" style="margin-bottom:8px">Changes to the categories, and to the oil check schedule for all vehicles.</p><div id="allHistCat"></div></div>
+        </section>
+
+        <!-- Trash -->
+        <section class="panel" id="panel-trash" role="tabpanel" hidden>
+            <div class="panel-head">
+                <div><h1 class="panel-title">Trash</h1><p class="panel-sub">Deleted entries, service, reminders and removed vehicles. Put them back within 30 days.</p></div>
+            </div>
+            <div class="list" id="trashList"></div>
         </section>
 
         <!-- One vehicle -->
@@ -463,37 +511,97 @@
         </form>
     </div>
 
+    <!-- Add or edit a service reminder -->
+    <div class="modal-backdrop" id="remModal">
+        <form class="modal" role="dialog" aria-modal="true" aria-labelledby="rmTitle" id="remForm" novalidate>
+            <h2 id="rmTitle">Add a reminder</h2>
+            <p class="modal-sub" id="rmSub"></p>
+            <div class="modal-grid">
+                <div class="field full"><label for="rmWhat">What's due</label><input class="input" id="rmWhat" maxlength="120" placeholder="Oil change" autocomplete="off"></div>
+                <div class="field"><label for="rmDueKm">Due at km</label><input class="input" id="rmDueKm" inputmode="numeric" maxlength="12" placeholder="e.g. 190000" autocomplete="off"></div>
+                <div class="field"><label for="rmDueDay">Or due on</label><input class="input" id="rmDueDay" type="date"></div>
+                <div class="field"><label for="rmEveryKm">Repeat every … km</label><input class="input" id="rmEveryKm" inputmode="numeric" maxlength="9" placeholder="Optional, e.g. 8000" autocomplete="off"></div>
+                <div class="field"><label for="rmEveryMonths">Repeat every … months</label><input class="input" id="rmEveryMonths" inputmode="numeric" maxlength="3" placeholder="Optional, e.g. 6" autocomplete="off"></div>
+                <div class="field full"><label for="rmNote">Note</label><textarea class="textarea" id="rmNote" maxlength="500" placeholder="Optional"></textarea></div>
+            </div>
+            <p class="hint" style="margin-bottom:8px">Whichever comes first. A repeating one moves to the next time when you press Done and log the service.</p>
+            <p class="modal-msg" id="rmMsg" role="alert"></p>
+            <div class="modal-foot">
+                <button type="button" class="btn danger" id="rmDelete" hidden>Delete</button>
+                <span class="spacer"></span>
+                <button type="button" class="btn ghost" data-close>Cancel</button>
+                <button type="submit" class="btn primary" id="rmSave">Save</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Questions and short answers (instead of the browser's own pop-ups, which some phones block) -->
+    <div class="modal-backdrop" id="askModal">
+        <form class="modal" role="dialog" aria-modal="true" aria-labelledby="askTitle" id="askForm" novalidate>
+            <h2 id="askTitle"></h2>
+            <p class="modal-sub" id="askSub"></p>
+            <div class="field" id="askField" hidden>
+                <label for="askInput" id="askLabel"></label>
+                <input class="input" id="askInput" autocomplete="off">
+                <textarea class="textarea" id="askText"></textarea>
+            </div>
+            <p class="modal-msg" id="askMsg" role="alert"></p>
+            <div class="modal-foot">
+                <span class="spacer"></span>
+                <button type="button" class="btn ghost" data-close>Cancel</button>
+                <button type="submit" class="btn primary" id="askOk">OK</button>
+            </div>
+        </form>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script type="module">
         // The time clock's shared code (sign-in, vehicle list, oil check rules) comes from the time clock itself,
         // which GitHub Pages serves next to this page (app.eandccourier.ca/timeclock/), so both always agree.
-        let core, g;
+        // tests/timeclock.test.mjs checks that the time clock still has every name used below.
+        const bootFail = text => { document.getElementById("bootScreen").innerHTML = '<div class="boot"><div>' + text + '<br><br><button type="button" class="btn" onclick="location.reload()">Try again</button></div></div>'; };
+        let core, g, fa, fd;
         try {
             [core, g] = await Promise.all([import("../timeclock/tc-core.js"), import("./garage-core.js")]);
+            // The rest of Firebase in the same version tc-core.js loaded (two versions together don't work).
+            // A tc-core.js from before it said which version it uses loads 12.19.0.
+            const SDK = typeof core.FIREBASE_SDK === "string" && /^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/$/.test(core.FIREBASE_SDK)
+                ? core.FIREBASE_SDK : "https://www.gstatic.com/firebasejs/12.19.0/";
+            [fa, fd] = await Promise.all([import(SDK + "firebase-auth.js"), import(SDK + "firebase-database.js")]);
         } catch (e) {
-            document.getElementById("bootScreen").innerHTML = '<div class="boot"><div>Couldn\'t load the garage. Check your connection and reload.</div></div>';
+            bootFail("Couldn't load the garage. Check your connection and try again.");
             throw e;
         }
         const {
-            auth, db, P, isAdminEmail, displayName, dayKey, addDaysKey, fmtTime, fmtKey, vehicleList, vanKey, esc, errText, AUTH_MESSAGES,
+            auth, db, P, isAdminEmail, displayName, emailKey, dayKey, fmtTime, fmtKey, vehicleList, vanKey, esc, errText, AUTH_MESSAGES,
             DOW_KEYS, DOW_SHORT, DOW_LONG, oilState, cleanOilPlan, oilPlanFor, oilNextDue, OIL_EVERY_MAX
         } = core;
-        const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = await import("https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js");
-        const { ref, onValue, get, set, update, push, remove, query, orderByChild, startAt, serverTimestamp } =
-            await import("https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js");
+        const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = fa;
+        const { ref, onValue, get, update, push, query, orderByChild, startAt, limitToLast, serverTimestamp } = fd;
 
         const $ = id => document.getElementById(id);
-        const G = { cats: "garage/categories", vehicles: "garage/vehicles" };
-        const OIL_DAYS = 60;      // oil checks loaded from shifts that started in the last 60 days (one vehicle's history)
+        const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history" };
+        // The two GPS units move from vehicle to vehicle, so they aren't vehicles: Garage lists the time clock's vans
+        // (Admin → Vehicles → Vehicles without GPS) and the ones added here. true would list the GPS units too.
+        const GPS_UNITS_ARE_VEHICLES = false;
+        const OIL_DAYS = 60;      // a vehicle's page shows the oil checks from the last 60 days (Show older adds 90 more)
         const LOOK_DAYS = 14;     // the Vehicle checks tab shows the last two weeks of oil checks, like the admin Inbox did
+        const NEED = ["cats", "garage", "vans", "reports"]; // what has to load before a vehicle can be found
+        const SNAP = "garage_saved_copy_v1";                 // localStorage: the last data seen, for opening with no signal
 
         // ---------- State ----------
-        let user = null, serverOffset = 0, unsubs = [], shiftUnsubs = {};
-        let cats = [], catsRaw = null, stored = {}, reports = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {};
-        let gpsRaw = null, vansRaw = {}, vehicles = [], idToKey = {};
+        let user = null, serverOffset = 0, unsubs = [], shiftUnsubs = {}, histUnsub = null, histKey = null;
+        let cats = [], catsRaw = null, stored = {}, reports = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {}, trash = {}, history = [];
+        let gpsRaw = null, vansRaw = {}, vehicles = [];
+        let loaded = {}, loadErr = null, savedCopyAt = 0, connected = false, everConnected = false, signedInAt = 0;
+        let oilDays = OIL_DAYS, filter = "all", histAll = false, purged = false;
         let view = "vehicles";    // a tab name, or "v:" + vehicle key
         const now = () => Date.now() + serverOffset;
+        const liveReady = () => NEED.every(k => loaded[k]);
+        const ready = () => liveReady() || savedCopyAt > 0;
+        // No signal: Firebase says it's not connected, and it isn't just starting up
+        const offline = () => !!user && !connected && (everConnected || Date.now() - signedInAt > 4000);
 
         function show(screen) {
             ["bootScreen", "gateScreen", "appScreen"].forEach(id => { $(id).hidden = id !== screen; });
@@ -509,16 +617,73 @@
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => el.classList.remove("show"), warn ? 6500 : 3500);
         }
-        const ago = ts => ts ? fmtKey(dayKey(ts)) + ", " + fmtTime(ts) : "";
+        const ago = ts => typeof ts === "number" ? fmtKey(dayKey(ts)) + ", " + fmtTime(ts) : "";
         const by = () => String(user.email).slice(0, 100);
+        const myName = () => { const e = employees[emailKey(user.email)]; return displayName(e, user.email).slice(0, 100); };
         const empName = k => { const e = employees[k]; return e ? displayName(e, e.email) : String(k).replace(/,/g, ".").split("@")[0]; };
         const vehicleByKey = k => vehicles.find(v => v.key === k) || null;
+        const vName = k => (vehicleByKey(k) || (stored[k] && stored[k].name ? { name: stored[k].name } : null) || { name: k }).name;
+        const today = () => dayKey(now());
+        const short = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
         const ICON = {
             edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
             up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>',
             down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
             del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'
         };
+
+        // ---------- Saving ----------
+        // Every change goes through here, with a line for each vehicle's Changes list ({ vkey, text }), in the same
+        // write, so the list never misses a change. With no signal nothing is sent (Firebase would only send it later,
+        // after the page might be closed).
+        async function write(u, hist) {
+            if (offline()) throw { code: "garage/offline" };
+            for (const h of [].concat(hist || [])) {
+                if (!h || !h.vkey) continue;
+                const p = G.history + "/" + h.vkey;
+                u[p + "/" + push(ref(db, p)).key] = { at: serverTimestamp(), by: by(), text: short(h.text, g.MAX.history) };
+            }
+            await update(ref(db), u);
+        }
+        const errMsg = err => err && err.code === "garage/offline" ? "No signal right now, so nothing was saved. Try again when you're back online." : errText(err);
+        // Puts something in the Trash (as part of a write): it can be put back for 30 days
+        function trashWrite(u, kind, vkey, id, data) {
+            u[G.trash + "/" + push(ref(db, G.trash)).key] = { at: serverTimestamp(), by: by(), kind: kind, vkey: vkey, vname: vName(vkey).slice(0, 60), id: id || "", data: data };
+        }
+
+        // ---------- Questions (the page's own small window) ----------
+        // ask({ title, sub, label, value, placeholder, max, multiline, number, ok, danger, check(value) -> error or "" })
+        // resolves to the text typed (or true when there's no box), or null when cancelled.
+        let askDone = null;
+        function ask(o) {
+            if (askDone) askDone(null);
+            $("askTitle").textContent = o.title; $("askSub").textContent = o.sub || ""; $("askMsg").textContent = "";
+            const hasBox = !!o.label;
+            $("askField").hidden = !hasBox;
+            $("askInput").hidden = !hasBox || !!o.multiline; $("askText").hidden = !hasBox || !o.multiline;
+            const box = o.multiline ? $("askText") : $("askInput");
+            if (hasBox) {
+                $("askLabel").textContent = o.label; $("askLabel").htmlFor = box.id;
+                box.value = o.value || ""; box.placeholder = o.placeholder || ""; box.maxLength = o.max || 500;
+                $("askInput").inputMode = o.number ? "numeric" : "text";
+            }
+            $("askOk").textContent = o.ok || "OK";
+            $("askOk").className = "btn " + (o.danger ? "danger" : "primary");
+            openModal("askModal");
+            return new Promise(resolve => {
+                askDone = v => { askDone = null; askCheck = null; resolve(v); };
+                askCheck = () => {
+                    const v = hasBox ? box.value : true;
+                    const bad = o.check ? o.check(v) : "";
+                    if (bad) { $("askMsg").textContent = bad; return; }
+                    const done = askDone;
+                    closeModal("askModal", true);
+                    done(v);
+                };
+            });
+        }
+        let askCheck = null;
+        $("askForm").addEventListener("submit", e => { e.preventDefault(); if (askCheck) askCheck(); });
 
         // ---------- Sign in (admins only, the same accounts as the time clock admin panel) ----------
         $("gateForm").addEventListener("submit", async e => {
@@ -532,18 +697,24 @@
             catch (err) { msg.textContent = AUTH_MESSAGES[err && err.code] || "Sign-in failed. Please try again."; $("gPass").value = ""; }
             btn.disabled = false; btn.textContent = "Sign in";
         });
-        $("gateSwitch").addEventListener("click", () => signOut(auth));
-        $("signOutBtn").addEventListener("click", () => signOut(auth));
+        const leave = () => { forgetCopy(); signOut(auth); };
+        $("gateSwitch").addEventListener("click", leave);
+        $("signOutBtn").addEventListener("click", leave);
 
         function stopAll() {
             unsubs.forEach(fn => fn()); unsubs = [];
             Object.values(shiftUnsubs).forEach(fn => fn()); shiftUnsubs = {};
+            if (histUnsub) histUnsub(); histUnsub = null; histKey = null;
+        }
+        function clearData() {
+            cats = []; catsRaw = null; stored = {}; reports = {}; oilPlans = {}; oilLast = {}; employees = {}; shiftsByEk = {}; trash = {}; history = [];
+            gpsRaw = null; vansRaw = {}; vehicles = []; loaded = {}; loadErr = null; savedCopyAt = 0;
         }
 
         onAuthStateChanged(auth, u => {
             stopAll();
+            clearData();
             user = u;
-            cats = []; catsRaw = null; stored = {}; reports = {}; oilPlans = {}; oilLast = {}; employees = {}; shiftsByEk = {};
             if (!u) {
                 $("gateTitle").textContent = "Garage sign in";
                 $("gateSub").textContent = "For the time clock admins. Use the same sign-in as the admin panel.";
@@ -559,40 +730,47 @@
                 return;
             }
             show("appScreen");
-            const sub = (r, cb) => unsubs.push(onValue(r, cb, err => toast("Couldn't load " + r.key + ": " + errText(err), true)));
-            sub(ref(db, ".info/serverTimeOffset"), s => { serverOffset = Number(s.val()) || 0; });
-            sub(ref(db, G.cats), s => {
-                catsRaw = s.val();
-                // The first time, start with the usual sections; they can be renamed or deleted after
-                if (!s.exists()) set(ref(db, G.cats), g.defaultCategories()).catch(err => toast("Couldn't add the starting categories: " + errText(err), true));
-                cats = g.sortCategories(catsRaw);
-                render();
-            });
-            sub(ref(db, G.vehicles), s => { stored = s.val() || {}; syncVehicles(); render(); });
-            sub(ref(db, P.vans), s => { vansRaw = s.val() || {}; syncVehicles(); render(); });
-            sub(ref(db, P.vanReports), s => { reports = s.val() || {}; render(); });
-            sub(ref(db, P.oilPlan), s => { oilPlans = s.val() || {}; render(); });
-            sub(ref(db, P.oilLast), s => { oilLast = s.val() || {}; render(); });
-            sub(ref(db, P.employees), s => { employees = s.val() || {}; syncShiftListeners(); render(); });
-            loadGps();
+            signedInAt = Date.now();
+            loadCopy(u.email);
+            startAll();
+            setTimeout(render, 4100); // shows the no-signal note if Firebase still hasn't connected
             render();
         });
 
-        // GPS units come from RouteWatcher (read once, like the admin panel; Refresh list reads them again)
-        async function loadGps() {
-            try { gpsRaw = (await get(ref(db, P.gps))).val(); }
-            catch (err) { gpsRaw = null; toast("Couldn't load GPS units from RouteWatcher: " + errText(err), true); }
-            syncVehicles(); render();
+        function startAll() {
+            const sub = (name, r, cb) => unsubs.push(onValue(r, s => { loaded[name] = true; cb(s); saveCopySoon(); render(); }, err => {
+                if (!loadErr) loadErr = { name: name, err: err };
+                render();
+            }));
+            unsubs.push(onValue(ref(db, ".info/serverTimeOffset"), s => { serverOffset = Number(s.val()) || 0; }));
+            unsubs.push(onValue(ref(db, ".info/connected"), s => { connected = s.val() === true; if (connected) everConnected = true; render(); }));
+            sub("cats", ref(db, G.cats), s => {
+                catsRaw = s.val();
+                // The first time, start with the usual sections; they can be renamed or deleted after
+                if (!s.exists()) update(ref(db), { [G.cats]: g.defaultCategories() }).catch(err => toast("Couldn't add the starting categories: " + errMsg(err), true));
+                cats = g.sortCategories(catsRaw);
+            });
+            sub("garage", ref(db, G.vehicles), s => { stored = s.val() || {}; syncVehicles(); });
+            sub("vans", ref(db, P.vans), s => { vansRaw = s.val() || {}; syncVehicles(); });
+            sub("reports", ref(db, P.vanReports), s => { reports = s.val() || {}; });
+            sub("oilPlan", ref(db, P.oilPlan), s => { oilPlans = s.val() || {}; });
+            sub("oilLast", ref(db, P.oilLast), s => { oilLast = s.val() || {}; });
+            sub("employees", ref(db, P.employees), s => { employees = s.val() || {}; syncShiftListeners(); });
+            sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
+            if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
+            syncHistory();
         }
-        $("gpsRefresh").addEventListener("click", loadGps);
+        $("retryBtn").addEventListener("click", () => {
+            stopAll(); loaded = {}; loadErr = null; shiftsByEk = {};
+            startAll(); render();
+        });
         function syncVehicles() {
-            vehicles = g.garageVehicles(vehicleList(gpsRaw, vansRaw), stored, vanKey);
-            idToKey = g.idToKeyMap(vehicles);
+            vehicles = g.garageVehicles(vehicleList(GPS_UNITS_ARE_VEHICLES ? gpsRaw : null, vansRaw), stored, vanKey);
         }
 
-        // Each employee's shifts from the last OIL_DAYS days, for their oil checks
+        // Each employee's shifts from the last oilDays days, for their oil checks
         function syncShiftListeners() {
-            const since = now() - OIL_DAYS * 86400000;
+            const since = now() - oilDays * 86400000;
             for (const k of Object.keys(shiftUnsubs)) if (!employees[k]) { shiftUnsubs[k](); delete shiftUnsubs[k]; delete shiftsByEk[k]; }
             for (const k of Object.keys(employees)) {
                 if (shiftUnsubs[k]) continue;
@@ -602,10 +780,92 @@
                 }, err => console.warn("Couldn't load shifts for " + k, err));
             }
         }
+        function showOlderOil() {
+            oilDays += 90;
+            Object.values(shiftUnsubs).forEach(fn => fn()); shiftUnsubs = {};
+            syncShiftListeners();
+            render();
+        }
+
+        // The Changes list for the vehicle on screen (or for all vehicles on the Oil schedule and Categories tabs)
+        function syncHistory() {
+            const want = view.startsWith("v:") ? view.slice(2) : view === "oil" || view === "categories" ? g.HISTORY_ALL : null;
+            if (!user || want === histKey) return;
+            if (histUnsub) histUnsub();
+            histUnsub = null; histKey = want; history = []; histAll = false;
+            if (!want || !/^([a-z0-9]{1,60}|_all)$/.test(want)) return;
+            histUnsub = onValue(query(ref(db, G.history + "/" + want), limitToLast(200)), s => {
+                history = Object.values(s.val() || {}).filter(h => h && h.text).sort((a, b) => (b.at || 0) - (a.at || 0));
+                render();
+            }, err => console.warn("Couldn't load the changes", err));
+        }
+        function historyHtml() {
+            if (!history.length) return '<p class="hint">Nothing changed in Garage yet.</p>';
+            const list = histAll ? history : history.slice(0, 12);
+            return '<div>' + list.map(h => '<div class="hist-line"><span class="hist-text">' + esc(h.text) + '</span><span class="muted">' + esc((h.by || "").split("@")[0]) + " · " + esc(ago(h.at)) + "</span></div>").join("") + "</div>" +
+                (history.length > list.length ? '<button type="button" class="btn sm ghost" data-hist-all style="margin-top:8px">Show all ' + history.length + "</button>" : "");
+        }
+        document.addEventListener("click", e => { if (e.target.closest("[data-hist-all]")) { histAll = true; render(); } });
+
+        // ---------- A saved copy for opening with no signal ----------
+        // Kept in this browser only, and only for the admin who saw it; signing out deletes it.
+        let copyTimer = null;
+        function saveCopySoon() {
+            if (copyTimer || !liveReady()) return;
+            copyTimer = setTimeout(() => {
+                copyTimer = null;
+                if (!user || !liveReady()) return;
+                const names = {};
+                for (const [k, e] of Object.entries(employees)) if (e) names[k] = { name: displayName(e, e.email) };
+                try {
+                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, oilPlans, oilLast, vansRaw, trash, employees: names }));
+                } catch (e) { /* full or blocked: just no saved copy */ }
+            }, 3000);
+        }
+        function loadCopy(email) {
+            let c = null;
+            try { c = JSON.parse(localStorage.getItem(SNAP) || "null"); } catch (e) { c = null; }
+            if (!c || c.email !== email || typeof c.at !== "number") return;
+            catsRaw = c.catsRaw; cats = g.sortCategories(catsRaw); stored = c.stored || {}; reports = c.reports || {}; oilPlans = c.oilPlans || {};
+            oilLast = c.oilLast || {}; vansRaw = c.vansRaw || {}; trash = c.trash || {}; employees = c.employees || {};
+            savedCopyAt = c.at;
+            syncVehicles();
+        }
+        function forgetCopy() { try { localStorage.removeItem(SNAP); } catch (e) {} }
+
+        // Trash older than 30 days is deleted for good (by whichever admin opens Garage first)
+        function purgeTrash() {
+            if (purged || offline()) return;
+            const old = g.trashExpired(trash, now());
+            purged = true;
+            if (!old.length) return;
+            const u = {};
+            old.forEach(id => { u[G.trash + "/" + id] = null; });
+            update(ref(db), u).catch(err => { purged = false; console.warn("Couldn't empty old trash", err); });
+        }
+
+        // ---------- Install as an app ----------
+        const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        let installPrompt = null;
+        if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(err => console.warn("Service worker:", err));
+        $("installBtn").hidden = standalone() || !isIOS;
+        window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; $("installBtn").hidden = standalone(); });
+        window.addEventListener("appinstalled", () => { installPrompt = null; $("installBtn").hidden = true; });
+        $("installBtn").addEventListener("click", async () => {
+            if (installPrompt) {
+                const p = installPrompt;
+                installPrompt = null;
+                p.prompt();
+                const choice = await p.userChoice.catch(() => null);
+                if (choice && choice.outcome === "accepted") $("installBtn").hidden = true;
+            } else if (isIOS) toast("To install: tap the Share button, then “Add to Home Screen”.");
+            else toast("To install: open your browser menu (⋮) and choose “Install app” or “Add to Home screen”.");
+        });
 
         // ---------- Views ----------
         const tabs = Array.from(document.querySelectorAll(".tab"));
-        const PANELS = ["vehicles", "look", "oil", "categories"];
+        const PANELS = ["vehicles", "look", "oil", "categories", "trash"];
         function go(v, push) {
             view = v;
             const isVehicle = v.startsWith("v:");
@@ -614,12 +874,15 @@
             PANELS.forEach(p => { $("panel-" + p).hidden = isVehicle || p !== v; });
             $("panel-vehicle").hidden = !isVehicle;
             const hash = "#" + (isVehicle ? "v/" + encodeURIComponent(v.slice(2)) : v);
-            if (push && location.hash !== hash) history.pushState(null, "", hash);
+            if (push && location.hash !== hash) history_.pushState(null, "", hash);
+            syncHistory();
             render();
             if (push) window.scrollTo(0, 0);
         }
+        const history_ = window.history;
         function fromHash() {
-            const h = decodeURIComponent(location.hash.slice(1));
+            let h = "";
+            try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ""; }
             go(h.startsWith("v/") ? "v:" + h.slice(2) : PANELS.includes(h) ? h : "vehicles", false);
         }
         window.addEventListener("popstate", fromHash);
@@ -637,6 +900,7 @@
             requestAnimationFrame(() => {
                 renderQueued = false;
                 if (!user || $("appScreen").hidden) return;
+                renderBanner();
                 const look = lookData();
                 $("lookCount").hidden = !(look.openVans + look.openOils);
                 $("lookCount").textContent = look.openVans + look.openOils;
@@ -644,9 +908,21 @@
                 else if (view === "look") renderLook(look);
                 else if (view === "oil") renderOilPlan();
                 else if (view === "categories") renderCategories();
+                else if (view === "trash") renderTrash();
                 else renderVehicle(view.slice(2));
             });
         }
+        function renderBanner() {
+            const off = offline();
+            $("offlineBar").hidden = !off;
+            if (off) $("offlineBar").textContent = "No signal. " + (!liveReady() && savedCopyAt ? "Showing the copy saved on this device " + ago(savedCopyAt) + ". " : "") +
+                "Changes can't be saved until you're back online.";
+            // A failed load (usually permission denied, or the rules not published yet) shows with a Try again button
+            $("loadError").hidden = !loadErr;
+            if (loadErr) $("loadErrorText").textContent = "Couldn't load " + ({ cats: "the categories", garage: "the garage", vans: "the van list", reports: "the vehicle problems", oilPlan: "the oil check schedule", oilLast: "the last oil checks", employees: "the employees", trash: "the trash" }[loadErr.name] || loadErr.name) + ": " +
+                (/permission/i.test(String(loadErr.err && (loadErr.err.code + " " + loadErr.err.message))) ? "the database said no (permission denied). Check that the newest database rules are published in the Firebase console." : errMsg(loadErr.err));
+        }
+        const loadingHtml = () => '<div class="boot" style="min-height:30vh"><div><div class="spinner"></div>Loading…</div></div>';
 
         // ---------- Oil check helpers (the schedule moved here from the admin panel) ----------
         const OIL_CHOICES = [["shift", "Every shift"], ["daily", "Once a day"], ["every", "Every few days"], ["days", "Chosen days of the week"], ["never", "Never"]];
@@ -684,13 +960,15 @@
         }
         const typingNumber = box => box.contains(document.activeElement) && document.activeElement.matches("input[type=number]");
         function renderOilPlan() {
+            $("allHistOil").innerHTML = historyHtml();
             const box = $("oilRows");
             if (typingNumber(box)) return;
+            if (!ready()) { box.innerHTML = loadingHtml(); return; }
             const def = cleanOilPlan(oilPlans.def);
             const rows = ['<div class="oil-row def" data-oil=""><div class="oil-head"><strong>All vehicles</strong><span class="muted">Used by every vehicle set to "Same as all vehicles"</span></div>' +
                 '<div class="oil-ctl">' + oilControls(def) + "</div></div>"];
-            for (const v of vehicles.filter(v => v.inList)) rows.push(oilRow(v, def));
-            if (rows.length === 1) rows.push('<p class="hint" style="margin:0">No vehicles yet. Each vehicle drivers can pick shows up here.</p>');
+            for (const v of vehicles.filter(v => v.inClock)) rows.push(oilRow(v, def));
+            if (rows.length === 1) rows.push('<p class="hint" style="margin:0">No vehicles yet. Each vehicle drivers can pick on the time clock shows up here.</p>');
             box.innerHTML = rows.join("");
         }
         // The plan a row's controls describe (null: same as all vehicles)
@@ -718,11 +996,12 @@
             if (e.target.dataset.day && !row.querySelector("[data-day]:checked")) { e.target.checked = true; toast("Pick at least one day, or choose Never.", true); return; }
             const plan = oilPlanFromRow(row, e.target.dataset.f === "mode");
             const path = P.oilPlan + (isDef ? "/def" : "/vehicles/" + key);
+            const text = (plan ? oilPlanText(cleanOilPlan(plan)) : "same as all vehicles");
+            const name = isDef ? "All vehicles" : vName(key);
             try {
-                await (plan ? set(ref(db, path), plan) : remove(ref(db, path)));
-                const name = isDef ? "All vehicles" : (vehicleByKey(key) || { name: key }).name;
-                toast(name + ": oil check " + (plan ? oilPlanText(cleanOilPlan(plan)) : "same as all vehicles") + ".");
-            } catch (err) { toast("Couldn't save the oil check schedule: " + errText(err), true); }
+                await write({ [path]: plan }, { vkey: isDef ? g.HISTORY_ALL : key, text: (isDef ? "Oil check for all vehicles: " : "Oil check: ") + text });
+                toast(name + ": oil check " + text + ".");
+            } catch (err) { toast("Couldn't save the oil check schedule: " + errMsg(err), true); }
             if (e.target.matches("input[type=number]")) e.target.blur();
             render();
         });
@@ -731,15 +1010,15 @@
             if (!b) return;
             const key = b.closest("[data-oil]").dataset.oil;
             try {
-                await set(ref(db, P.oilPlan + "/ask/" + key), serverTimestamp());
-                toast("The next driver of " + (vehicleByKey(key) || { name: key }).name + " will be asked to check the oil.");
-            } catch (err) { toast("Couldn't save: " + errText(err), true); }
+                await write({ [P.oilPlan + "/ask/" + key]: serverTimestamp() }, { vkey: key, text: "Asked for an oil check at the next shift" });
+                toast("The next driver of " + vName(key) + " will be asked to check the oil.");
+            } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
         });
 
         // ---------- Vehicle problems and oil checks (Vehicle checks tab and each vehicle) ----------
         function lookData() {
-            const vans = g.reportList(reports, idToKey, vanKey);
-            const oils = g.oilList(shiftsByEk, now() - OIL_DAYS * 86400000, oilState, idToKey, vanKey);
+            const vans = g.reportList(reports, vanKey);
+            const oils = g.oilList(shiftsByEk, now() - oilDays * 86400000, oilState, vanKey);
             const lookSince = now() - LOOK_DAYS * 86400000;
             const recent = oils.filter(o => o.s.in >= lookSince);
             return { vans, oils, recent, openVans: vans.filter(r => r.status === "open").length, openOils: recent.filter(o => o.open).length };
@@ -747,11 +1026,13 @@
         const vehicleLink = (vkey, name) => vehicleByKey(vkey) ? '<button type="button" class="e-vehicle" data-open="' + esc(vkey) + '">' + esc(name) + "</button>" : esc(name);
         function problemHtml(r, withVehicle) {
             const done = r.status !== "open";
+            const who = r.name || empName(r.ek);
             return '<div class="entry' + (done ? " done" : "") + '"><div class="e-top"><span class="e-who">' +
-                (withVehicle ? "Vehicle " + vehicleLink(r.vkey, r.vehicleName || r.vehicleId) : esc(r.name || empName(r.ek))) + '</span><span class="e-when">' + esc(ago(r.at)) + "</span></div>" +
-                (withVehicle ? '<div class="e-detail">Reported by ' + esc(r.name || empName(r.ek)) + "</div>" : "") +
+                (withVehicle ? "Vehicle " + vehicleLink(r.vkey, r.vehicleName || r.vehicleId) : esc(who)) + '</span><span class="e-when">' + esc(ago(r.at)) + "</span></div>" +
+                (withVehicle ? '<div class="e-detail">Reported by ' + esc(who) + "</div>" : "") +
                 '<div class="e-note">' + esc(r.text) + "</div>" +
-                (done ? '<div class="e-reply">Fixed' + (r.fixNote ? ": " + esc(r.fixNote) : "") + (r.by ? " · " + esc(r.by) : "") + (r.doneAt ? " · " + esc(ago(r.doneAt)) : "") + "</div>"
+                (done ? '<div class="e-reply">Fixed' + (r.fixNote ? ": " + esc(r.fixNote) : "") + (r.by ? " · " + esc(r.by) : "") + (r.doneAt ? " · " + esc(ago(r.doneAt)) : "") + "</div>" +
+                        '<div class="e-actions"><button type="button" class="btn sm ghost" data-vanreopen="' + esc(r.id) + '">Reopen</button></div>'
                     : '<div class="e-actions"><button type="button" class="btn sm primary" data-vanfixed="' + esc(r.id) + '">Mark fixed</button></div>') + "</div>";
         }
         function oilHtml(o, withVehicle) {
@@ -769,64 +1050,176 @@
         const empty = text => '<div class="empty">' + text + "</div>";
         function renderLook(d) {
             $("lookVanCount").textContent = d.openVans; $("lookOilCount").textContent = d.openOils;
+            if (!ready()) { $("lookVans").innerHTML = loadingHtml(); return; }
             $("lookVans").innerHTML = d.vans.map(r => problemHtml(r, true)).join("") || empty("No vehicle problems reported yet.");
             // Missed and on-the-clock first; checked ones from the last two weeks after
             $("lookOil").innerHTML = d.recent.filter(o => o.open || o.state === "waiting").concat(d.recent.filter(o => !o.open && o.state !== "waiting"))
-                .map(o => oilHtml(o, true)).join("") || empty("No oil checks in the last two weeks.");
+                .map(o => oilHtml(o, true)).join("") || empty(loaded.employees ? "No oil checks in the last two weeks." : "Loading…");
         }
         document.addEventListener("click", async e => {
             const seen = e.target.closest("[data-oilseen]");
             if (seen) {
                 const [k, id] = seen.dataset.oilseen.split("|");
-                try { await update(ref(db, P.shifts + "/" + k + "/" + id + "/oil"), { seenBy: by(), seenAt: serverTimestamp() }); toast("Marked as seen."); }
-                catch (err) { toast("Couldn't save: " + errText(err), true); }
+                const o = lookData().oils.find(x => x.ek === k && x.s.id === id);
+                seen.disabled = true;
+                try {
+                    await write({ [P.shifts + "/" + k + "/" + id + "/oil/seenBy"]: by(), [P.shifts + "/" + k + "/" + id + "/oil/seenAt"]: serverTimestamp() },
+                        o && { vkey: o.vkey, text: "Missed oil check seen (" + empName(k) + ", " + fmtKey(dayKey(o.s.in)) + ")" });
+                    toast("Marked as seen.");
+                } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
+                seen.disabled = false;
                 return;
             }
             const vf = e.target.closest("[data-vanfixed]");
             if (vf) {
-                const note = prompt("Mark this vehicle problem fixed? Add a note (optional):", "");
+                const id = vf.dataset.vanfixed, r = reports[id];
+                if (!r) return;
+                const note = await ask({ title: "Mark fixed", sub: short(r.text, 140), label: "What was done (optional)", multiline: true, max: g.MAX.fixNote, placeholder: "e.g. Replaced the bulb", ok: "Mark fixed" });
                 if (note === null) return;
-                try { await update(ref(db, P.vanReports + "/" + vf.dataset.vanfixed), { status: "fixed", fixNote: note.trim().slice(0, 300), by: by(), doneAt: serverTimestamp() }); toast("Marked fixed. It stays in the list."); }
-                catch (err) { toast("Couldn't save: " + errText(err), true); }
+                try {
+                    await write({ [P.vanReports + "/" + id + "/status"]: "fixed", [P.vanReports + "/" + id + "/fixNote"]: note.trim().slice(0, g.MAX.fixNote), [P.vanReports + "/" + id + "/by"]: by(), [P.vanReports + "/" + id + "/doneAt"]: serverTimestamp() },
+                        { vkey: vanKey(r.vehicleName || ""), text: "Problem fixed: " + short(r.text, 80) + (note.trim() ? " (" + note.trim() + ")" : "") });
+                    toast("Marked fixed. It stays in the list.");
+                } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
+                return;
+            }
+            const vr = e.target.closest("[data-vanreopen]");
+            if (vr) {
+                const id = vr.dataset.vanreopen, r = reports[id];
+                if (!r) return;
+                vr.disabled = true;
+                try {
+                    await write({ [P.vanReports + "/" + id + "/status"]: "open", [P.vanReports + "/" + id + "/fixNote"]: null, [P.vanReports + "/" + id + "/by"]: null, [P.vanReports + "/" + id + "/doneAt"]: null },
+                        { vkey: vanKey(r.vehicleName || ""), text: "Problem reopened: " + short(r.text, 80) + (r.by ? " (had been fixed by " + r.by.split("@")[0] + (r.fixNote ? ": " + r.fixNote : "") + ")" : "") });
+                    toast("Reopened.");
+                } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
+                vr.disabled = false;
             }
         });
+        async function addProblem(key) {
+            const v = vehicleByKey(key);
+            if (!v) return;
+            const text = await ask({ title: "Add a problem", sub: "Vehicle " + v.name + ". It shows with the problems drivers report, until it's marked fixed.", label: "What's wrong", multiline: true,
+                max: g.MAX.problem, placeholder: "e.g. Passenger headlight out", ok: "Add problem", check: t => { const c = g.cleanProblem({ text: t }); return c.ok ? "" : c.error; } });
+            if (text === null) return;
+            const c = g.cleanProblem({ text: text });
+            const id = push(ref(db, P.vanReports)).key;
+            try {
+                await write({ [P.vanReports + "/" + id]: { at: serverTimestamp(), ek: emailKey(user.email), name: myName(), vehicleId: ("garage_" + key).slice(0, 128), vehicleName: v.name.slice(0, 60), text: c.value.text, status: "open" } },
+                    { vkey: key, text: "Problem added: " + short(c.value.text, 100) });
+                toast("Problem added.");
+            } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
+        }
 
-        // ---------- Vehicles list and search ----------
+        // ---------- Vehicles list, filters and search ----------
+        function vehicleInfo() {
+            const openBy = {};
+            for (const r of Object.values(reports)) if (r && r.text && r.status === "open") { const k = vanKey(r.vehicleName || ""); openBy[k] = (openBy[k] || 0) + 1; }
+            const t = today();
+            return vehicles.map(v => ({ v: v, open: openBy[v.key] || 0, oil: v.inClock ? oilDueTag(v) : null, svc: g.serviceDue(stored[v.key], t) }));
+        }
+        const FILTERS = [["all", "All", () => true], ["problems", "Open problems", x => x.open > 0], ["oil", "Oil due", x => !!(x.oil && x.oil.due)], ["service", "Service due", x => !!x.svc]];
         function renderVehicles() {
             const q = $("search").value;
             const box = $("vehicleList");
+            $("chips").hidden = !!q.trim();
+            if (!ready()) { box.innerHTML = loadingHtml(); $("chips").innerHTML = ""; return; }
             if (q.trim()) {
                 const hits = g.searchGarage(q, vehicles, stored, cats);
                 box.innerHTML = hits.length ? '<div class="results">' + hits.map(h => {
                     const e = h.entry;
                     const what = h.kind === "item" ? esc(e.label) + (e.value ? " <span>· " + esc(e.value) + "</span>" : "") + (e.part ? " <span>· #" + esc(e.part) + "</span>" : "")
-                        : esc(e.what) + " <span>· " + esc(fmtKey(e.day)) + "</span>";
+                        : h.kind === "service" ? esc(e.what) + " <span>· " + esc(fmtKey(e.day)) + "</span>"
+                        : esc(e.what) + (e.dueDay ? " <span>· " + esc(fmtKey(e.dueDay)) + "</span>" : "") + (typeof e.dueKm === "number" ? " <span>· " + esc(g.fmtKm(e.dueKm)) + "</span>" : "");
                     return '<button type="button" class="result" data-open="' + esc(h.vehicle.key) + '"><div><div class="r-where">' + esc(h.vehicle.name) + " · " + esc(h.catName) + '</div><div class="r-what">' + what + "</div></div></button>";
                 }).join("") + "</div>" : empty("Nothing saved matches “" + esc(q.trim()) + "”.");
                 return;
             }
-            const openBy = {};
-            for (const r of Object.values(reports)) if (r && r.text && r.status === "open") { const k = g.recordKey(r.vehicleId, r.vehicleName, idToKey, vanKey); openBy[k] = (openBy[k] || 0) + 1; }
-            const card = (v, i) => {
-                const s = stored[v.key] || {}, n = Object.keys(s.items || {}).length, sv = Object.keys(s.service || {}).length, open = openBy[v.key] || 0;
-                return '<button type="button" class="v-card' + (open ? " problem" : "") + (v.inList ? "" : " gone") + '" style="--i:' + i + '" data-open="' + esc(v.key) + '">' +
+            const info = vehicleInfo();
+            const f = FILTERS.find(x => x[0] === filter) || FILTERS[0];
+            $("chips").innerHTML = FILTERS.map(([id, label, fn]) => {
+                const n = id === "all" ? 0 : info.filter(fn).length;
+                return '<button type="button" class="chip" data-filter="' + id + '" aria-pressed="' + (id === f[0]) + '">' + label + (n ? ' <span class="n">' + n + "</span>" : "") + "</button>";
+            }).join("");
+            const card = (x, i) => {
+                const v = x.v, s = stored[v.key] || {}, n = Object.keys(s.items || {}).length, sv = Object.keys(s.service || {}).length;
+                const shown = v.inClock || v.listed;
+                return '<button type="button" class="v-card' + (x.open ? " problem" : "") + (shown ? "" : " gone") + '" style="--i:' + i + '" data-open="' + esc(v.key) + '">' +
                     '<div class="v-name">' + esc(v.name) + '</div><div class="v-sub">' + (n ? n + (n === 1 ? " entry" : " entries") : "Nothing saved yet") + (sv ? " · " + sv + " service" : "") + "</div>" +
-                    '<div class="tags">' + (open ? '<span class="tag warn">' + open + (open === 1 ? " problem" : " problems") + "</span>" : "") + (v.inList ? oilDueTag(v).tag : '<span class="tag">Not in the van list</span>') + "</div></button>";
+                    '<div class="tags">' + (x.open ? '<span class="tag warn">' + x.open + (x.open === 1 ? " problem" : " problems") + "</span>" : "") +
+                    (x.svc === "overdue" ? '<span class="tag warn">Service overdue</span>' : x.svc === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
+                    (x.oil ? x.oil.tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></button>";
             };
-            const inList = vehicles.filter(v => v.inList), gone = vehicles.filter(v => !v.inList);
-            box.innerHTML = (inList.length ? '<div class="v-grid">' + inList.map(card).join("") + "</div>"
-                : empty("No vehicles yet. They come from RouteWatcher's GPS units and Admin → Vehicles → Vehicles without GPS.")) +
+            const list = info.filter(f[2]);
+            const main = list.filter(x => x.v.inClock || x.v.listed), gone = list.filter(x => !x.v.inClock && !x.v.listed);
+            box.innerHTML = (main.length ? '<div class="v-grid">' + main.map(card).join("") + "</div>"
+                : empty(filter !== "all" ? "No vehicles with " + esc(f[1].toLowerCase()) + "." : "No vehicles yet. Add one with + Add vehicle, or in the time clock under Admin → Vehicles → Vehicles without GPS.")) +
                 (gone.length ? '<h2 class="section-title">No longer in the van list</h2><div class="v-grid">' + gone.map(card).join("") + "</div>" : "");
         }
         $("search").addEventListener("input", render);
+        $("chips").addEventListener("click", e => { const c = e.target.closest("[data-filter]"); if (c) { filter = c.dataset.filter; render(); } });
+
+        $("addVehicleBtn").addEventListener("click", async () => {
+            if (!ready()) return;
+            const check = t => {
+                const c = g.cleanVehicleName(t);
+                if (!c.ok) return c.error;
+                const key = vanKey(c.value);
+                if (!key) return "Use letters or numbers in the name.";
+                if (vehicleByKey(key)) return "There's already a vehicle called " + vehicleByKey(key).name + ".";
+                return "";
+            };
+            const name = await ask({ title: "Add a vehicle", sub: "For a vehicle drivers don't pick on the time clock. To let drivers pick it, add it in the time clock under Admin → Vehicles instead; it then shows here by itself.",
+                label: "Name", placeholder: "e.g. 14", max: g.MAX.vname, ok: "Add vehicle", check: check });
+            if (name === null) return;
+            const n = g.cleanVehicleName(name).value, key = vanKey(n), base = G.vehicles + "/" + key;
+            try {
+                await write({ [base + "/name"]: n, [base + "/listed"]: true, [base + "/removed"]: null }, { vkey: key, text: "Vehicle added in Garage" });
+                toast(n + " added.");
+                go("v:" + key, true);
+            } catch (err) { toast("Couldn't add it: " + errMsg(err), true); }
+        });
+
+        // Spreadsheet (CSV) of every vehicle's info, service, reminders and problems, to keep as a backup
+        $("exportBtn").addEventListener("click", () => {
+            if (!ready()) return;
+            const rows = g.csvRows(vehicles, stored, cats, g.reportList(reports, vanKey), ts => dayKey(ts) + " " + fmtTime(ts));
+            const blob = new Blob(["﻿" + g.toCsv(rows)], { type: "text/csv;charset=utf-8" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "garage-" + today() + ".csv";
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+            toast("Saved " + (rows.length - 1) + " rows to " + a.download + ".");
+        });
 
         // ---------- One vehicle ----------
+        function reminderHtml(r) {
+            const st = r.st, bits = [];
+            if (typeof r.dueKm === "number") bits.push("At " + g.fmtKm(r.dueKm) + (st.kmLeft === null ? "" : st.kmLeft > 0 ? " (" + g.fmtKm(st.kmLeft) + " to go)" : st.kmLeft === 0 ? " (now)" : " (" + g.fmtKm(-st.kmLeft) + " over)"));
+            if (r.dueDay) bits.push("On " + fmtKey(r.dueDay) + (st.daysLeft > 1 ? " (in " + st.daysLeft + " days)" : st.daysLeft === 1 ? " (tomorrow)" : st.daysLeft === 0 ? " (today)" : " (" + -st.daysLeft + (st.daysLeft === -1 ? " day" : " days") + " ago)"));
+            const every = [r.everyKm ? "every " + g.fmtKm(r.everyKm) : "", r.everyMonths ? "every " + r.everyMonths + (r.everyMonths === 1 ? " month" : " months") : ""].filter(Boolean).join(" or ");
+            return '<div class="item"><div class="i-main"><span class="i-value">' + esc(r.what) + "</span> " +
+                (st.state === "overdue" ? '<span class="tag warn">Overdue</span>' : st.state === "soon" ? '<span class="tag soon">Due soon</span>' : "") + "</div>" +
+                '<div class="i-tools"><button type="button" class="btn sm" data-rem-done="' + esc(r.id) + '">Done</button><button type="button" class="icon-btn" data-edit-rem="' + esc(r.id) + '" aria-label="Edit ' + esc(r.what) + '">' + ICON.edit + "</button></div>" +
+                '<div class="i-extra">' + bits.map(b => "<span>" + esc(b) + "</span>").join("") + (every ? "<span>Repeats " + esc(every) + "</span>" : "") + "</div>" +
+                (r.note ? '<div class="i-note">' + esc(r.note) + "</div>" : "") + "</div>";
+        }
+        function kmText(s) {
+            const km = g.currentKm(s);
+            if (km === null) return "Km not known yet.";
+            const fromOdo = s.odo && s.odo.km === km;
+            return "Now " + g.fmtKm(km) + (fromOdo ? " (entered " + fmtKey(s.odo.day || dayKey(s.odo.at)) + ")" : " (from the service log)") + ".";
+        }
         function renderVehicle(key) {
             const box = $("vehicleView");
             if (typingNumber(box)) return;
+            if (!ready()) { box.innerHTML = loadErr ? "" : loadingHtml(); return; }
             const v = vehicleByKey(key);
             if (!v) {
-                box.innerHTML = vehicles.length || gpsRaw !== null ? empty("This vehicle isn't in the list.") : '<div class="boot"><div><div class="spinner"></div>Loading…</div></div>';
+                const gone = stored[key] && stored[key].removed;
+                box.innerHTML = empty(gone ? "This vehicle was removed from Garage. You can put it back from the Trash tab." : "There's no vehicle " + esc(key) + " in Garage.");
                 return;
             }
             const s = stored[key] || {};
@@ -836,6 +1229,8 @@
             const def = cleanOilPlan(oilPlans.def);
             const groups = g.itemGroups(s.items, cats);
             const svc = g.serviceList(s.service);
+            const rems = g.reminderList(s.reminders, g.currentKm(s), today());
+            const svcDue = rems.length && rems[0].st.state !== "ok" ? rems[0].st.state : "";
 
             const itemHtml = it => {
                 const link = it.link ? g.cleanLink(it.link) : "";
@@ -857,109 +1252,254 @@
                     (typeof e.cost === "number" ? "<span>" + esc(g.fmtMoney(e.cost)) + "</span>" : "") + "</div>" : "") +
                 (e.note ? '<div class="i-note">' + esc(e.note) + "</div>" : "") + "</div>").join("");
 
+            const oilCard = '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
+                (v.inClock ? '<div class="oil-rows">' + oilRow(v, def) + "</div>"
+                    : '<p class="hint">' + lastCheckText(oilLast[key]) + ". Drivers can't pick this vehicle on the time clock, so they're never asked to check its oil.</p>") +
+                '<div class="oil-hist"><div class="label">Last ' + oilDays + " days</div>" +
+                (oils.length ? oils.map(o => '<div class="oil-line"><span>' + esc(fmtKey(dayKey(o.s.in))) + " · " + esc(empName(o.ek)) + "</span>" +
+                    (o.state === "checked" ? '<span class="tag live">Checked ' + esc(fmtTime(o.s.oil.at)) + "</span>" : o.state === "waiting" ? '<span class="tag warn">Not checked yet</span>'
+                        : o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Got it</button>'
+                        : '<span class="tag" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · seen" : "") + "</span>") + "</div>").join("")
+                    : '<p class="hint" style="margin-top:6px">' + (loaded.employees ? "No oil checks on shifts in this vehicle." : "Loading…") + "</p>") +
+                '<button type="button" class="btn sm ghost" data-oil-older style="margin-top:8px">Show older</button></div></div>';
+
             box.innerHTML = '<div class="v-head"><div><h1>' + esc(v.name) + '</h1><div class="tags" style="margin-top:8px">' +
                 (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
-                (v.inList ? oilDueTag(v).tag : '<span class="tag">Not in the van list</span>') + "</div></div></div>" +
+                (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
+                (v.inClock ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
+                '<div class="panel-actions"><button type="button" class="btn sm" id="odoBtn">Update km</button><button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button></div></div>' +
                 '<div class="v-cols"><div>' +
-                    '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check. Fixed ones stay here.</p></div></div>' +
+                    '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
                         '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>" +
                     '<div class="card"><div class="card-head"><div><h3>Info and parts</h3><p class="hint">Bulbs, fluids, sizes, part numbers. Categories are the same for every vehicle.</p></div></div>' + info + "</div>" +
                 "</div><div>" +
-                    '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
-                        (v.inList ? '<div class="oil-rows">' + oilRow(v, def) + "</div>" : '<p class="hint">' + lastCheckText(oilLast[key]) + "</p>") +
-                        '<div class="oil-hist"><div class="label">Last ' + OIL_DAYS + " days</div>" +
-                        (oils.length ? oils.map(o => '<div class="oil-line"><span>' + esc(fmtKey(dayKey(o.s.in))) + " · " + esc(empName(o.ek)) + "</span>" +
-                            (o.state === "checked" ? '<span class="tag live">Checked ' + esc(fmtTime(o.s.oil.at)) + "</span>" : o.state === "waiting" ? '<span class="tag warn">Not checked yet</span>'
-                                : o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Got it</button>'
-                                : '<span class="tag" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · seen" : "") + "</span>") + "</div>").join("")
-                            : '<p class="hint" style="margin-top:6px">No oil checks on shifts in this vehicle.</p>') + "</div></div>" +
+                    '<div class="card"><div class="card-head"><div><h3>Service due</h3><p class="hint">' + esc(kmText(s)) + '</p></div><button type="button" class="btn sm primary" id="addRem">+ Add reminder</button></div>' +
+                        (rems.length ? '<div class="items">' + rems.map(reminderHtml).join("") + "</div>" : empty("No reminders. Add one, for example the next oil change at a km or a date.")) + "</div>" +
                     '<div class="card"><div class="card-head"><div><h3>Service log</h3><p class="hint">Oil changes, brakes, tires and other work.</p></div><button type="button" class="btn sm primary" id="addSvc">+ Add service</button></div>' +
                         (svcHtml ? '<div class="items">' + svcHtml + "</div>" : empty("Nothing logged yet.")) + "</div>" +
+                    oilCard +
+                    '<div class="card"><div class="card-head"><div><h3>Changes</h3><p class="hint">Who changed what in Garage for this vehicle.</p></div></div>' + historyHtml() + "</div>" +
                 "</div></div>";
         }
         const currentKey = () => view.startsWith("v:") ? view.slice(2) : null;
 
         // ---------- Modals ----------
-        function openModal(id) { $(id).classList.add("show"); setTimeout(() => { const f = $(id).querySelector("input:not([type=hidden]), select"); if (f && matchMedia("(min-width: 621px)").matches) f.focus(); }, 60); }
-        function closeModal(id) { $(id).classList.remove("show"); }
+        function openModal(id) { $(id).classList.add("show"); setTimeout(() => { const f = $(id).querySelector("input:not([type=hidden]):not([hidden]), select, textarea:not([hidden])"); if (f && matchMedia("(min-width: 621px)").matches) f.focus(); }, 60); }
+        function closeModal(id, answered) {
+            $(id).classList.remove("show");
+            if (id === "askModal" && !answered && askDone) askDone(null);
+        }
         document.querySelectorAll(".modal-backdrop").forEach(m => {
             m.addEventListener("click", e => { if (e.target === m || e.target.closest("[data-close]")) closeModal(m.id); });
         });
-        document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".modal-backdrop.show").forEach(m => closeModal(m.id)); });
+        // Escape closes the window on top
+        document.addEventListener("keydown", e => { if (e.key === "Escape") { const open = document.querySelectorAll(".modal-backdrop.show"); if (open.length) closeModal(open[open.length - 1].id); } });
 
         // Writes the vehicle's name along with an entry, so a vehicle that leaves the van list still shows by name
-        const withName = (key, u) => Object.assign(u, { [G.vehicles + "/" + key + "/name"]: (vehicleByKey(key) || { name: key }).name.slice(0, 60) });
+        const withName = (key, u) => Object.assign(u, { [G.vehicles + "/" + key + "/name"]: vName(key).slice(0, 60) });
+        // Someone else saved (or deleted) the same thing while this window was open: say so once, and save on the
+        // second press. Returns true when it's fine to save.
+        function fresh(state, current, msgEl) {
+            if (!state.id || state.warned) return true;
+            const changed = !current ? "It was deleted" : current.at !== state.at ? "It was changed" + (current.by ? " by " + current.by.split("@")[0] : "") : "";
+            if (!changed) return true;
+            state.warned = true;
+            msgEl.textContent = changed + " while you had it open. Press Save again to save yours over it, or Cancel to keep theirs.";
+            return false;
+        }
 
         // Entry
-        let editItem = null; // { key, id } or { key, id: null }
+        let editItem = null; // { key, id, at } (id null for a new one)
         function openItem(key, id, catId) {
             const it = id ? ((stored[key] || {}).items || {})[id] : null;
             if (id && !it) return;
-            editItem = { key: key, id: id };
+            editItem = { key: key, id: id, at: it && it.at };
             const cat = it ? it.cat : catId;
             $("imCat").innerHTML = cats.map(c => '<option value="' + esc(c.id) + '"' + (c.id === cat ? " selected" : "") + ">" + esc(c.name) + "</option>").join("") +
                 (it && !cats.some(c => c.id === it.cat) ? '<option value="' + esc(it.cat) + '" selected>Other</option>' : "");
             const catName = (cats.find(c => c.id === cat) || { name: "Other" }).name;
             $("imTitle").textContent = it ? "Edit " + it.label : "Add to " + catName;
-            $("imSub").textContent = (vehicleByKey(key) || { name: key }).name;
+            $("imSub").textContent = vName(key) + (it ? stampText(it) : "");
             $("imLabel").value = it ? it.label : ""; $("imValue").value = it && it.value || ""; $("imPart").value = it && it.part || "";
             $("imLink").value = it && it.link || ""; $("imNote").value = it && it.note || "";
             $("imMsg").textContent = ""; $("imDelete").hidden = !it;
             openModal("itemModal");
         }
+        // "· Added by justin 3 Oct · changed by desirae 18 Oct"
+        function stampText(e) {
+            const added = e.added !== undefined ? e.added : e.at, addedBy = e.addedBy !== undefined ? e.addedBy : e.by;
+            const who = b => (b || "").split("@")[0];
+            return (typeof added === "number" ? " · Added" + (addedBy ? " by " + who(addedBy) : "") + " " + fmtKey(dayKey(added)) : "") +
+                (typeof e.at === "number" && e.at !== added ? " · changed" + (e.by ? " by " + who(e.by) : "") + " " + fmtKey(dayKey(e.at)) : "");
+        }
+        const itemText = it => (cats.find(c => c.id === it.cat) || { name: "Other" }).name + ": " + it.label + (it.value ? " " + it.value : "");
         $("itemForm").addEventListener("submit", async e => {
             e.preventDefault();
             const c = g.cleanItem({ cat: $("imCat").value, label: $("imLabel").value, value: $("imValue").value, part: $("imPart").value, link: $("imLink").value, note: $("imNote").value });
             if (!c.ok) { $("imMsg").textContent = c.error; return; }
             const { key, id } = editItem;
+            const old = id ? ((stored[key] || {}).items || {})[id] : null;
+            if (!fresh(editItem, old, $("imMsg"))) return;
             const path = G.vehicles + "/" + key + "/items/" + (id || push(ref(db, G.vehicles + "/" + key + "/items")).key);
             $("imSave").disabled = true;
             try {
-                await update(ref(db), withName(key, { [path]: Object.assign(c.value, { at: serverTimestamp(), by: by() }) }));
+                await write(withName(key, { [path]: Object.assign(c.value, g.stamps(old, by(), serverTimestamp())) }), { vkey: key, text: (old ? "Changed " : "Added ") + itemText(c.value) });
                 closeModal("itemModal"); toast("Saved.");
-            } catch (err) { $("imMsg").textContent = "Couldn't save: " + errText(err); }
+            } catch (err) { $("imMsg").textContent = "Couldn't save: " + errMsg(err); }
             $("imSave").disabled = false;
         });
         $("imDelete").addEventListener("click", async () => {
             const { key, id } = editItem;
-            if (!id || !confirm("Delete " + $("imLabel").value + "?")) return;
-            try { await remove(ref(db, G.vehicles + "/" + key + "/items/" + id)); closeModal("itemModal"); toast("Deleted."); }
-            catch (err) { $("imMsg").textContent = "Couldn't delete: " + errText(err); }
+            const it = id ? ((stored[key] || {}).items || {})[id] : null;
+            if (!it) return;
+            if (await ask({ title: "Delete " + it.label + "?", sub: "It goes to the Trash, where you can put it back for 30 days.", ok: "Delete", danger: true }) === null) return;
+            const u = { [G.vehicles + "/" + key + "/items/" + id]: null };
+            trashWrite(u, "item", key, id, it);
+            try { await write(u, { vkey: key, text: "Deleted " + itemText(it) }); closeModal("itemModal"); toast("Deleted. It's in the Trash for 30 days."); }
+            catch (err) { $("imMsg").textContent = "Couldn't delete: " + errMsg(err); }
         });
 
-        // Service log entry
-        let editSvc = null;
-        function openSvc(key, id) {
-            const e = id ? ((stored[key] || {}).service || {})[id] : null;
+        // Service log entry (also how a reminder is marked done: the service is logged and the reminder moves on)
+        let editSvc = null; // { key, id, at, rem }
+        function openSvc(key, id, rem) {
+            const s = stored[key] || {};
+            const e = id ? (s.service || {})[id] : null;
             if (id && !e) return;
-            editSvc = { key: key, id: id };
-            $("smTitle").textContent = e ? "Edit service" : "Add service";
-            $("smSub").textContent = (vehicleByKey(key) || { name: key }).name;
-            $("smDay").value = e ? e.day : dayKey(now()); $("smWhat").value = e ? e.what : "";
+            editSvc = { key: key, id: id, at: e && e.at, rem: rem || null };
+            $("smTitle").textContent = e ? "Edit service" : rem ? "Done: " + rem.what : "Add service";
+            const km = g.currentKm(s);
+            $("smSub").textContent = vName(key) + (e ? stampText(e) : rem ? " · Log the service and the reminder " + (g.nextReminder(rem, km, today()) ? "moves to the next time." : "is finished.") : "");
+            $("smDay").value = e ? e.day : today(); $("smWhat").value = e ? e.what : rem ? rem.what : "";
             $("smKm").value = e && typeof e.km === "number" ? e.km : ""; $("smCost").value = e && typeof e.cost === "number" ? e.cost.toFixed(2) : "";
+            $("smKm").placeholder = km !== null ? "Last known " + km : "Optional";
             $("smNote").value = e && e.note || "";
             $("smMsg").textContent = ""; $("smDelete").hidden = !e;
+            $("smSave").textContent = rem ? "Save and mark done" : "Save";
             openModal("svcModal");
         }
         $("svcForm").addEventListener("submit", async e => {
             e.preventDefault();
             const c = g.cleanService({ day: $("smDay").value, what: $("smWhat").value, km: $("smKm").value, cost: $("smCost").value, note: $("smNote").value });
             if (!c.ok) { $("smMsg").textContent = c.error; return; }
-            const { key, id } = editSvc;
+            const { key, id, rem } = editSvc;
+            const s = stored[key] || {};
+            const old = id ? (s.service || {})[id] : null;
+            if (!fresh(editSvc, old, $("smMsg"))) return;
             const path = G.vehicles + "/" + key + "/service/" + (id || push(ref(db, G.vehicles + "/" + key + "/service")).key);
+            const u = withName(key, { [path]: Object.assign(c.value, g.stamps(old, by(), serverTimestamp())) });
+            const hist = [{ vkey: key, text: (old ? "Changed service: " : "Logged service: ") + c.value.what + ", " + fmtKey(c.value.day) + (typeof c.value.km === "number" ? ", " + g.fmtKm(c.value.km) : "") }];
+            if (rem) {
+                const cur = (s.reminders || {})[rem.id];
+                const rp = G.vehicles + "/" + key + "/reminders/" + rem.id;
+                if (cur) {
+                    const next = g.nextReminder(cur, typeof c.value.km === "number" ? c.value.km : g.currentKm(s), c.value.day);
+                    if (next) {
+                        u[rp + "/dueKm"] = next.dueKm === undefined ? null : next.dueKm;
+                        u[rp + "/dueDay"] = next.dueDay === undefined ? null : next.dueDay;
+                        u[rp + "/at"] = serverTimestamp(); u[rp + "/by"] = by();
+                        hist.push({ vkey: key, text: "Reminder done: " + cur.what + ". Next " + [next.dueKm !== undefined ? "at " + g.fmtKm(next.dueKm) : "", next.dueDay ? "on " + fmtKey(next.dueDay) : ""].filter(Boolean).join(" or ") });
+                    } else {
+                        u[rp] = null;
+                        hist.push({ vkey: key, text: "Reminder done and finished: " + cur.what });
+                    }
+                }
+            }
             $("smSave").disabled = true;
             try {
-                await update(ref(db), withName(key, { [path]: Object.assign(c.value, { at: serverTimestamp(), by: by() }) }));
-                closeModal("svcModal"); toast("Saved.");
-            } catch (err) { $("smMsg").textContent = "Couldn't save: " + errText(err); }
+                await write(u, hist);
+                closeModal("svcModal"); toast(rem ? "Saved, and the reminder is done." : "Saved.");
+            } catch (err) { $("smMsg").textContent = "Couldn't save: " + errMsg(err); }
             $("smSave").disabled = false;
         });
         $("smDelete").addEventListener("click", async () => {
             const { key, id } = editSvc;
-            if (!id || !confirm("Delete this service entry?")) return;
-            try { await remove(ref(db, G.vehicles + "/" + key + "/service/" + id)); closeModal("svcModal"); toast("Deleted."); }
-            catch (err) { $("smMsg").textContent = "Couldn't delete: " + errText(err); }
+            const e = id ? ((stored[key] || {}).service || {})[id] : null;
+            if (!e) return;
+            if (await ask({ title: "Delete this service entry?", sub: e.what + ", " + fmtKey(e.day) + ". It goes to the Trash, where you can put it back for 30 days.", ok: "Delete", danger: true }) === null) return;
+            const u = { [G.vehicles + "/" + key + "/service/" + id]: null };
+            trashWrite(u, "service", key, id, e);
+            try { await write(u, { vkey: key, text: "Deleted service: " + e.what + ", " + fmtKey(e.day) }); closeModal("svcModal"); toast("Deleted. It's in the Trash for 30 days."); }
+            catch (err) { $("smMsg").textContent = "Couldn't delete: " + errMsg(err); }
         });
+
+        // Service reminder
+        let editRem = null; // { key, id, at }
+        function openRem(key, id) {
+            const s = stored[key] || {};
+            const r = id ? (s.reminders || {})[id] : null;
+            if (id && !r) return;
+            editRem = { key: key, id: id, at: r && r.at };
+            $("rmTitle").textContent = r ? "Edit reminder" : "Add a reminder";
+            $("rmSub").textContent = vName(key) + " · " + kmText(s) + (r ? stampText(r) : "");
+            $("rmWhat").value = r ? r.what : ""; $("rmDueKm").value = r && typeof r.dueKm === "number" ? r.dueKm : ""; $("rmDueDay").value = r && r.dueDay || "";
+            $("rmEveryKm").value = r && r.everyKm || ""; $("rmEveryMonths").value = r && r.everyMonths || ""; $("rmNote").value = r && r.note || "";
+            $("rmMsg").textContent = ""; $("rmDelete").hidden = !r;
+            openModal("remModal");
+        }
+        $("remForm").addEventListener("submit", async e => {
+            e.preventDefault();
+            const { key, id } = editRem;
+            const s = stored[key] || {};
+            const c = g.cleanReminder({ what: $("rmWhat").value, dueKm: $("rmDueKm").value, dueDay: $("rmDueDay").value, everyKm: $("rmEveryKm").value, everyMonths: $("rmEveryMonths").value, note: $("rmNote").value },
+                g.currentKm(s), today());
+            if (!c.ok) { $("rmMsg").textContent = c.error; return; }
+            const old = id ? (s.reminders || {})[id] : null;
+            if (!fresh(editRem, old, $("rmMsg"))) return;
+            const path = G.vehicles + "/" + key + "/reminders/" + (id || push(ref(db, G.vehicles + "/" + key + "/reminders")).key);
+            $("rmSave").disabled = true;
+            try {
+                await write(withName(key, { [path]: Object.assign(c.value, g.stamps(old, by(), serverTimestamp())) }), { vkey: key, text: (old ? "Changed reminder: " : "Added reminder: ") + c.value.what });
+                closeModal("remModal"); toast("Saved.");
+            } catch (err) { $("rmMsg").textContent = "Couldn't save: " + errMsg(err); }
+            $("rmSave").disabled = false;
+        });
+        $("rmDelete").addEventListener("click", async () => {
+            const { key, id } = editRem;
+            const r = id ? ((stored[key] || {}).reminders || {})[id] : null;
+            if (!r) return;
+            if (await ask({ title: "Delete this reminder?", sub: r.what + ". It goes to the Trash, where you can put it back for 30 days.", ok: "Delete", danger: true }) === null) return;
+            const u = { [G.vehicles + "/" + key + "/reminders/" + id]: null };
+            trashWrite(u, "reminder", key, id, r);
+            try { await write(u, { vkey: key, text: "Deleted reminder: " + r.what }); closeModal("remModal"); toast("Deleted. It's in the Trash for 30 days."); }
+            catch (err) { $("rmMsg").textContent = "Couldn't delete: " + errMsg(err); }
+        });
+
+        async function updateKm(key) {
+            const s = stored[key] || {}, km = g.currentKm(s);
+            const val = await ask({ title: "Update km", sub: vName(key) + " · " + kmText(s), label: "Km on the dash", number: true, max: 12, placeholder: km !== null ? String(km) : "e.g. 182500", ok: "Save",
+                check: t => {
+                    const c = g.cleanOdo({ km: t });
+                    if (!c.ok) return c.error;
+                    return km !== null && c.value.km < km ? "That's less than the " + g.fmtKm(km) + " already saved. Check the number, or fix the service log entry with the higher km." : "";
+                } });
+            if (val === null) return;
+            const c = g.cleanOdo({ km: val });
+            try {
+                await write(withName(key, { [G.vehicles + "/" + key + "/odo"]: { km: c.value.km, day: today(), at: serverTimestamp(), by: by() } }), { vkey: key, text: "Km updated to " + g.fmtKm(c.value.km) });
+                toast("Saved: " + g.fmtKm(c.value.km) + ".");
+            } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
+        }
+
+        // Removing a vehicle hides it in Garage and puts what was saved for it in the Trash. It stays on the time clock.
+        async function removeVehicle(key) {
+            const v = vehicleByKey(key);
+            if (!v) return;
+            const s = stored[key] || {};
+            const n = Object.keys(s.items || {}).length + Object.keys(s.service || {}).length + Object.keys(s.reminders || {}).length;
+            const ok = await ask({ title: "Remove " + v.name + "?", danger: true, ok: "Remove",
+                sub: "It goes to the Trash" + (n ? " with its " + n + (n === 1 ? " entry" : " entries") : "") + ", where you can put it back for 30 days." +
+                    (v.inClock ? " Drivers can still pick it on the time clock; to stop that, remove it in the time clock under Admin → Vehicles." : "") });
+            if (ok === null) return;
+            const data = { name: v.name };
+            for (const k of ["listed", "items", "service", "reminders", "odo"]) if (s[k] !== undefined) data[k] = s[k];
+            const u = { [G.vehicles + "/" + key]: { name: v.name.slice(0, 60), removed: true } };
+            trashWrite(u, "vehicle", key, "", data);
+            try {
+                await write(u, { vkey: key, text: "Vehicle removed from Garage" });
+                toast(v.name + " removed. It's in the Trash for 30 days.");
+                go("vehicles", true);
+            } catch (err) { toast("Couldn't remove it: " + errMsg(err), true); }
+        }
 
         $("vehicleView").addEventListener("click", e => {
             const key = currentKey();
@@ -970,13 +1510,68 @@
             if (ed) { openItem(key, ed.dataset.editItem); return; }
             const es = e.target.closest("[data-edit-svc]");
             if (es) { openSvc(key, es.dataset.editSvc); return; }
+            const er = e.target.closest("[data-edit-rem]");
+            if (er) { openRem(key, er.dataset.editRem); return; }
+            const rd = e.target.closest("[data-rem-done]");
+            if (rd) {
+                const r = ((stored[key] || {}).reminders || {})[rd.dataset.remDone];
+                if (r) openSvc(key, null, Object.assign({ id: rd.dataset.remDone }, r));
+                return;
+            }
+            if (e.target.closest("[data-oil-older]")) { showOlderOil(); return; }
             if (e.target.closest("#addSvc")) openSvc(key, null);
+            else if (e.target.closest("#addRem")) openRem(key, null);
+            else if (e.target.closest("#addProblem")) addProblem(key);
+            else if (e.target.closest("#odoBtn")) updateKm(key);
+            else if (e.target.closest("#removeVehicle")) removeVehicle(key);
+        });
+
+        // ---------- Trash ----------
+        const KIND = { item: "Entry", service: "Service", reminder: "Reminder", vehicle: "Vehicle" };
+        function trashText(t) {
+            const d = t.data || {};
+            if (t.kind === "item") return itemText(d);
+            if (t.kind === "service") return (d.what || "") + (d.day ? ", " + fmtKey(d.day) : "");
+            if (t.kind === "reminder") return d.what || "";
+            const n = Object.keys(d.items || {}).length + Object.keys(d.service || {}).length + Object.keys(d.reminders || {}).length;
+            return (t.vname || t.vkey) + (n ? " and its " + n + (n === 1 ? " entry" : " entries") : "");
+        }
+        function renderTrash() {
+            const box = $("trashList");
+            if (!ready()) { box.innerHTML = loadingHtml(); return; }
+            const list = g.trashList(trash);
+            box.innerHTML = list.map(t => '<div class="entry"><div class="e-top"><span class="e-who">' + KIND[t.kind] + (t.kind === "vehicle" ? "" : " · " + vehicleLink(t.vkey, t.vname || t.vkey)) +
+                '</span><span class="e-when">' + esc(ago(t.at)) + "</span></div>" +
+                '<div class="e-what">' + esc(trashText(t)) + "</div>" +
+                '<div class="e-detail">Deleted by ' + esc((t.by || "").split("@")[0]) + ". Gone for good on " + esc(fmtKey(dayKey(t.at + g.TRASH_DAYS * 86400000))) + ".</div>" +
+                '<div class="e-actions"><button type="button" class="btn sm primary" data-restore="' + esc(t.tid) + '">Put back</button><button type="button" class="btn sm danger" data-purge="' + esc(t.tid) + '">Delete for good</button></div></div>').join("") ||
+                empty("The Trash is empty.");
+        }
+        $("trashList").addEventListener("click", async e => {
+            const rb = e.target.closest("[data-restore]"), pb = e.target.closest("[data-purge]");
+            const t = rb ? trash[rb.dataset.restore] : pb ? trash[pb.dataset.purge] : null;
+            if (!t) return;
+            const tid = rb ? rb.dataset.restore : pb.dataset.purge;
+            if (pb) {
+                if (await ask({ title: "Delete for good?", sub: KIND[t.kind] + ": " + trashText(t) + ". This can't be undone.", ok: "Delete for good", danger: true }) === null) return;
+                try { await write({ [G.trash + "/" + tid]: null }, { vkey: t.vkey, text: "Deleted for good from the Trash: " + trashText(t) }); toast("Deleted for good."); }
+                catch (err) { toast("Couldn't delete: " + errMsg(err), true); }
+                return;
+            }
+            if (t.kind !== "vehicle" && stored[t.vkey] && stored[t.vkey].removed) { toast("Vehicle " + (t.vname || t.vkey) + " is in the Trash too. Put the vehicle back first.", true); return; }
+            const u = g.restoreWrites(t, G.vehicles);
+            if (!u) { toast("This can't be put back.", true); return; }
+            u[G.trash + "/" + tid] = null;
+            try { await write(u, { vkey: t.vkey, text: "Put back from the Trash: " + trashText(t) }); toast("Put back."); }
+            catch (err) { toast("Couldn't put it back: " + errMsg(err), true); }
         });
 
         // ---------- Categories ----------
         function renderCategories() {
+            $("allHistCat").innerHTML = historyHtml();
             const box = $("catRows");
             if (box.contains(document.activeElement)) return; // renaming one
+            if (!ready()) { box.innerHTML = loadingHtml(); return; }
             const used = {};
             for (const s of Object.values(stored)) for (const it of Object.values((s && s.items) || {})) if (it && it.cat) used[it.cat] = (used[it.cat] || 0) + 1;
             box.innerHTML = cats.map((c, i) => '<div class="cat-row" data-cat="' + esc(c.id) + '">' +
@@ -988,13 +1583,16 @@
                 empty("No categories. Add one below.");
             box.dataset.used = JSON.stringify(used);
         }
+        const ALL = g.HISTORY_ALL;
         $("catRows").addEventListener("change", async e => {
             const row = e.target.closest("[data-cat]");
             if (!row || !e.target.matches("input")) return;
             const name = e.target.value.trim().slice(0, g.MAX.catName);
-            if (!name) { toast("A category needs a name. To remove it, use the bin.", true); e.target.blur(); render(); return; }
-            try { await set(ref(db, G.cats + "/" + row.dataset.cat + "/name"), name); toast("Renamed to " + name + "."); }
-            catch (err) { toast("Couldn't rename: " + errText(err), true); }
+            const old = (cats.find(c => c.id === row.dataset.cat) || { name: "" }).name;
+            if (!name) { toast("A category needs a name. To remove it, use the bin.", true); e.target.value = old; e.target.blur(); render(); return; }
+            if (name === old) { e.target.blur(); return; }
+            try { await write({ [G.cats + "/" + row.dataset.cat + "/name"]: name }, { vkey: ALL, text: "Category " + old + " renamed to " + name }); toast("Renamed to " + name + "."); }
+            catch (err) { toast("Couldn't rename: " + errMsg(err), true); e.target.value = old; }
             e.target.blur(); render();
         });
         $("catRows").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("input")) { e.preventDefault(); e.target.blur(); } });
@@ -1003,6 +1601,7 @@
             const row = e.target.closest("[data-cat]");
             if (!row) return;
             const i = cats.findIndex(c => c.id === row.dataset.cat);
+            if (i < 0) return;
             const mv = e.target.closest("[data-move]");
             if (mv) {
                 const j = i + Number(mv.dataset.move);
@@ -1011,15 +1610,17 @@
                 [order[i], order[j]] = [order[j], order[i]];
                 const u = {};
                 order.forEach((id, n) => { u[G.cats + "/" + id + "/order"] = n; });
-                try { await update(ref(db), u); } catch (err) { toast("Couldn't move it: " + errText(err), true); }
+                try { await write(u); } catch (err) { toast("Couldn't move it: " + errMsg(err), true); }
                 return;
             }
             if (e.target.closest("[data-del-cat]")) {
+                const c = cats[i];
                 if (cats.length === 1) { toast("Keep at least one category. Rename this one instead.", true); return; }
-                const n = JSON.parse($("catRows").dataset.used || "{}")[cats[i].id] || 0;
-                if (!confirm("Delete the category " + cats[i].name + "?" + (n ? " Its " + n + (n === 1 ? " entry moves" : " entries move") + " to Other on each vehicle, and nothing is deleted." : ""))) return;
-                try { await remove(ref(db, G.cats + "/" + cats[i].id)); toast(cats[i].name + " deleted."); }
-                catch (err) { toast("Couldn't delete: " + errText(err), true); }
+                const n = JSON.parse($("catRows").dataset.used || "{}")[c.id] || 0;
+                if (await ask({ title: "Delete the category " + c.name + "?", danger: true, ok: "Delete",
+                    sub: n ? "Its " + n + (n === 1 ? " entry moves" : " entries move") + " to Other on each vehicle; no entry is deleted." : "No vehicle has anything in it." }) === null) return;
+                try { await write({ [G.cats + "/" + c.id]: null }, { vkey: ALL, text: "Category " + c.name + " deleted" + (n ? " (its entries are under Other)" : "") }); toast(c.name + " deleted."); }
+                catch (err) { toast("Couldn't delete: " + errMsg(err), true); }
             }
         });
         $("catAdd").addEventListener("submit", async e => {
@@ -1028,9 +1629,9 @@
             if (!name) return;
             if (cats.some(c => c.name.toLowerCase() === name.toLowerCase())) { toast("There's already a category called " + name + ".", true); return; }
             try {
-                await set(push(ref(db, G.cats)), { name: name, order: cats.length ? Math.max(...cats.map(c => c.order)) + 1 : 0 });
+                await write({ [G.cats + "/" + push(ref(db, G.cats)).key]: { name: name, order: cats.length ? Math.max(...cats.map(c => c.order)) + 1 : 0 } }, { vkey: ALL, text: "Category " + name + " added" });
                 $("catName").value = ""; toast(name + " added to every vehicle.");
-            } catch (err) { toast("Couldn't add it: " + errText(err), true); }
+            } catch (err) { toast("Couldn't add it: " + errMsg(err), true); }
         });
 
         fromHash();

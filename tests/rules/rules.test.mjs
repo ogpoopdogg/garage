@@ -74,3 +74,55 @@ test('service log: date and what were done; km and cost are numbers in range', a
   await assertFails(db.ref('garage/vehicles/12/other').set(1));
   await assertFails(db.ref('garage/other').set(1));
 });
+
+test('who added an entry, and vehicles added or removed in Garage', async () => {
+  const db = admin();
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i1').set(Object.assign({}, item, { added: 1, addedBy: 'celeste@ec.com' })));
+  await assertSucceeds(db.ref('garage/vehicles/12/service/s1').set({ day: '2026-10-18', what: 'Oil change', added: 1, addedBy: 'celeste@ec.com', at: 2, by: 'justin@ec.com' }));
+  await assertSucceeds(db.ref('garage/vehicles/14').set({ name: '14', listed: true }));
+  await assertSucceeds(db.ref('garage/vehicles/5').set({ name: '5', removed: true }));
+  await assertFails(db.ref('garage/vehicles/14/listed').set('yes'));
+  await assertFails(db.ref('garage/vehicles/12/items/i1/added').set('today'));
+});
+
+test('service reminders: what, and a km or a date it is due', async () => {
+  const db = admin();
+  const r = { what: 'Oil change', dueKm: 190500, dueDay: '2027-04-18', everyKm: 8000, everyMonths: 6, note: 'synthetic', added: 1, addedBy: 'justin@ec.com', at: 1, by: 'justin@ec.com' };
+  await assertSucceeds(db.ref('garage/vehicles/12/reminders/r1').set(r));
+  await assertSucceeds(db.ref('garage/vehicles/12/reminders/r2').set({ what: 'Tires', dueDay: '2027-05-01' }));
+  // marking it done moves it on (a km reminder can drop its date)
+  await assertSucceeds(db.ref().update({ 'garage/vehicles/12/reminders/r1/dueKm': 198500, 'garage/vehicles/12/reminders/r1/dueDay': null }));
+  await assertFails(db.ref('garage/vehicles/12/reminders/r3').set({ what: 'Tires' }));
+  await assertFails(db.ref('garage/vehicles/12/reminders/r3').set({ what: '', dueKm: 1 }));
+  await assertFails(db.ref('garage/vehicles/12/reminders/r3').set(Object.assign({}, r, { everyMonths: 1.5 })));
+  await assertFails(db.ref('garage/vehicles/12/reminders/r3').set(Object.assign({}, r, { everyKm: 0 })));
+  await assertFails(db.ref('garage/vehicles/12/reminders/r3').set(Object.assign({}, r, { dueDay: 'soon' })));
+  await assertFails(db.ref('garage/vehicles/12/reminders/r3').set(Object.assign({}, r, { color: 'red' })));
+});
+
+test('km reading', async () => {
+  const db = admin();
+  await assertSucceeds(db.ref('garage/vehicles/12/odo').set({ km: 182500, day: '2026-10-18', at: 1, by: 'justin@ec.com' }));
+  await assertFails(db.ref('garage/vehicles/12/odo').set({ day: '2026-10-18' }));
+  await assertFails(db.ref('garage/vehicles/12/odo').set({ km: -5 }));
+  await assertFails(db.ref('garage/vehicles/12/odo').set({ km: 5, where: 'dash' }));
+});
+
+test('trash and the change history: admins only, and only what Garage saves', async () => {
+  const db = admin();
+  const t = { at: 1, by: 'justin@ec.com', kind: 'item', vkey: '12', vname: '12', id: 'i1', data: { cat: 'lights', label: 'Headlight' } };
+  await assertSucceeds(db.ref('garage/trash/t1').set(t));
+  await assertSucceeds(db.ref('garage/trash/t2').set(Object.assign({}, t, { kind: 'vehicle', id: '', data: { name: '12', items: { a: { cat: 'x', label: 'y' } } } })));
+  await assertSucceeds(db.ref('garage/trash/t1').remove());
+  await assertFails(db.ref('garage/trash/t3').set(Object.assign({}, t, { kind: 'car' })));
+  await assertFails(db.ref('garage/trash/t3').set(Object.assign({}, t, { data: null })));
+  await assertFails(db.ref('garage/trash/t3').set(Object.assign({}, t, { vkey: 'Van 12' })));
+  await assertSucceeds(db.ref('garage/history/12/h1').set({ at: 1, by: 'justin@ec.com', text: 'Added Lights: Headlight H11' }));
+  await assertSucceeds(db.ref('garage/history/_all/h1').set({ at: 1, by: 'justin@ec.com', text: 'Category Brakes added' }));
+  await assertFails(db.ref('garage/history/12/h2').set({ at: 1, text: '' }));
+  await assertFails(db.ref('garage/history/12/h2').set({ at: 1, text: 'x'.repeat(301) }));
+  await assertFails(db.ref('garage/history/Van 12/h2').set({ at: 1, text: 'x' }));
+  const matt = as('matt@ec.com');
+  await assertFails(matt.ref('garage/trash').once('value'));
+  await assertFails(matt.ref('garage/history/12/h3').set({ at: 1, text: 'x' }));
+});
