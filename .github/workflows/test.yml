@@ -3,6 +3,10 @@ name: Tests
 on:
   push:
   pull_request:
+  # Every day too: Garage loads the time clock's tc-core.js, which can change in the timeclock repo
+  schedule:
+    - cron: "17 11 * * *"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -12,8 +16,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - name: Garage helpers (vehicles, problems, oil checks, search, entries)
+      - name: Garage helpers (vehicles, problems, oil checks, reminders, trash, search, export)
         run: node --test tests/garage.test.mjs
+      - name: The time clock's tc-core.js still has what Garage uses
+        run: node --test tests/timeclock.test.mjs
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
