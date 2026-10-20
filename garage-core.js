@@ -75,6 +75,27 @@ export function garageVehicles(clock, stored, keyOf) {
     return Array.from(map.values()).sort((a, b) => shown(b) - shown(a) || byKey(a, b));
 }
 
+// Whether drivers can pick a vehicle on the time clock (the vehicle's "Time clock" switch):
+//   "gps": a GPS unit in RouteWatcher has its name, so drivers can always pick it (the switch can't turn it off)
+//   "on":  it's in the time clock's vans (timeclock/vans); vanIds are those entries, turning it off removes them
+//   "off": drivers can't pick it; turning it on adds it to timeclock/vans
+// gps and vans are tc-core's gpsList() and manualVans(): [{ id, name }].
+export const CLOCK_NAME_MAX = 40; // the longest name timeclock/vans takes (the time clock's database rules)
+export function clockState(key, gps, vans, keyOf) {
+    const g = (gps || []).find(x => keyOf(x.name) === key);
+    const vanIds = (vans || []).filter(x => keyOf(x.name) === key).map(x => x.id);
+    return { state: g ? "gps" : vanIds.length ? "on" : "off", gpsName: g ? g.name : "", vanIds: vanIds };
+}
+// Why the switch can't be turned off right now: someone has the vehicle on their shift (timeclock/vehicle_claims/{vanId}).
+// Returns the person's name, or "" when nobody has it.
+export function clockInUse(vanIds, claims) {
+    for (const id of vanIds || []) {
+        const c = claims && claims[id];
+        if (c) return String(c.name || c.nickname || c.email || "Someone");
+    }
+    return "";
+}
+
 // Vehicle Check reports as a list: open ones first, then the newest. Fixed ones stay in the list.
 // vkey: the vehicle the report names (by its name only).
 export function reportList(reports, keyOf) {

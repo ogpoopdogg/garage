@@ -40,12 +40,16 @@ One page for everything we know about each vehicle:
 The vehicles are matched **by name only**, never by GPS unit: the GPS units move from vehicle to
 vehicle. Garage lists the vehicles in RouteWatcher (GPS) and the vans in the time clock's
 **Admin → Vehicles → Vehicles without GPS** (one vehicle when both have the same name), plus
-any added here with **+ Add vehicle** (for one drivers don't pick), plus any that still have
+any added here with **+ Add vehicle** (only in Garage at first), plus any that still have
 entries after leaving that list (under *No longer in the van list*). "Van 12", "12" and
 "Vehicle 12" are one vehicle. **Remove vehicle** hides one in Garage and puts its entries in
 the Trash; it stays on the time clock. A problem or oil check a driver saves under a GPS
 unit's own name (not a vehicle's) shows on the Vehicle checks tab but on no vehicle page.
-To leave the RouteWatcher vehicles out, set `GPS_UNITS_ARE_VEHICLES` in `garage.html` to `false`.
+Each vehicle's page has a **Time clock** switch: on, drivers can pick it when they punch in
+(Garage adds it to the time clock's vans, the same list as Admin → Vehicles); off, it's only in
+Garage (Garage takes it off that list). Use off for things like a forklift. It can't be turned off
+while a driver has the vehicle on their shift, and a vehicle with a GPS unit in RouteWatcher is
+always on. To leave the RouteWatcher vehicles out, set `GPS_UNITS_ARE_VEHICLES` in `garage.html` to `false`.
 Works on phones and computers.
 
 ## How it fits with the time clock
@@ -70,7 +74,8 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 | `garage/vehicles/{key}/odo` | `{ km, day, at, by }`: the last km entered | Garage |
 | `garage/trash/{id}` | `{ at, by, kind, vkey, vname, id, data }`, deleted after 30 days | Garage |
 | `garage/history/{key}/{id}` | `{ at, by, text }` (`_all`: changes for every vehicle) | Garage |
-| `timeclock/vans` | The time clock's vans without GPS (Garage's vehicle list) | Admin panel |
+| `timeclock/vans` | The time clock's vans without GPS (Garage's vehicle list) | Admin panel; Garage's Time clock switch adds and removes them |
+| `timeclock/vehicle_claims` | Who has each van now, read only (the Time clock switch won't turn off a van in use) | Time clock |
 | `developer/dispatch_dashboard/drivers` | The RouteWatcher vehicles (GPS), read only (Garage's vehicle list) | RouteWatcher |
 | `timeclock/van_reports` | Vehicle Check reports | Drivers and Garage; Garage marks them fixed or reopens them |
 | `timeclock/shifts/{ek}/{id}/oil` | The oil check on each shift | Drivers; Garage marks a missed one as seen |

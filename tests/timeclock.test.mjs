@@ -63,7 +63,10 @@ for (const { from, src } of copies) {
     assert.strictEqual(c.vanKey('12'), '12');
     assert.strictEqual(c.emailKey('Matt.B@ec.com'), 'matt,b@ec,com');
     assert.deepStrictEqual(c.vehicleList(null, { van_a: { name: '14' }, van_b: { name: '3' }, x: { name: 'not a van' } }).map(v => v.name), ['3', '14']);
-    for (const k of ['vans', 'vanReports', 'shifts', 'oilPlan', 'oilLast', 'employees', 'gps']) assert.strictEqual(typeof c.P[k], 'string', 'P.' + k);
+    for (const k of ['vans', 'vanReports', 'shifts', 'oilPlan', 'oilLast', 'employees', 'gps', 'claims']) assert.strictEqual(typeof c.P[k], 'string', 'P.' + k);
+    assert.deepStrictEqual(c.gpsList({ d1: { name: 'Van 12', deviceId: 'x' }, d2: { name: 'no unit' } }).map(v => [v.id, v.name]), [['d1', 'Van 12']]);
+    assert.deepStrictEqual(c.manualVans({ van_a: { name: 'Forklift' }, x: { name: 'not a van' } }).map(v => [v.id, v.name]), [['van_a', 'Forklift']]);
+    assert.strictEqual(c.VAN_PREFIX, 'van_');
     assert.strictEqual(c.isAdminEmail('Justin@ec.com'), true);
     assert.strictEqual(c.oilState({ in: 1 }), 'none');
     assert.strictEqual(c.oilState({ in: 1, out: 2, vehicleId: 'van_a', oil: { done: true } }), 'checked');

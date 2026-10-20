@@ -5,7 +5,8 @@ import {
   defaultCategories, sortCategories, garageVehicles, reportList, oilList, shiftVehicle,
   itemGroups, serviceList, searchGarage, cleanItem, cleanService, cleanLink,
   addMonths, daysBetween, currentKm, reminderState, reminderList, serviceDue, cleanReminder, nextReminder, cleanOdo,
-  stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS
+  stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS,
+  clockState, clockInUse
 } from '../garage-core.js';
 
 // The time clock's vanKey (timeclock/tc-core.js): "Van 12", "van12" and "12" are the same vehicle
@@ -32,6 +33,18 @@ test('vehicles: by name only; the time clock\'s vans, ones added here, and ones 
     { key: '14', name: '14', inClock: false, listed: true },
     { key: '7', name: 'Van 7', inClock: false, listed: false }
   ]);
+});
+
+test('time clock switch: a GPS name is always on, a van in timeclock/vans is on, anything else is off', () => {
+  const gps = [{ id: 'gps1', name: 'Van 12' }];
+  const vans = [{ id: 'van_a', name: '12' }, { id: 'van_b', name: 'Forklift' }, { id: 'van_c', name: 'forklift' }, { id: 'van_d', name: '3' }];
+  assert.deepStrictEqual(clockState('12', gps, vans, vanKey), { state: 'gps', gpsName: 'Van 12', vanIds: ['van_a'] });
+  assert.deepStrictEqual(clockState('forklift', gps, vans, vanKey), { state: 'on', gpsName: '', vanIds: ['van_b', 'van_c'] });
+  assert.deepStrictEqual(clockState('7', gps, vans, vanKey), { state: 'off', gpsName: '', vanIds: [] });
+  assert.deepStrictEqual(clockState('7', null, null, vanKey), { state: 'off', gpsName: '', vanIds: [] });
+  assert.strictEqual(clockInUse(['van_b', 'van_c'], { van_c: { name: 'Matt' } }), 'Matt');
+  assert.strictEqual(clockInUse(['van_b'], { van_c: { name: 'Matt' } }), '');
+  assert.strictEqual(clockInUse(['van_b'], null), '');
 });
 
 test('problems: open first, then newest; fixed ones stay in the list', () => {
