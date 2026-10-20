@@ -5,9 +5,9 @@ import {
   defaultCategories, sortCategories, garageVehicles, reportList, oilList, shiftVehicle,
   itemGroups, serviceList, searchGarage, cleanItem, cleanService, cleanLink,
   addMonths, daysBetween, currentKm, reminderState, reminderList, serviceDue, cleanReminder, nextReminder, cleanOdo,
-  stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS,
-  categoryFields, cleanFields, fieldsText, fieldNames, entryFields, entryTitle, hasContent
+  stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS
 } from '../garage-core.js';
+import { categoryFields, cleanFields, fieldsText, fieldNames, entryFields, entryTitle, hasContent } from '../garage-core.js';
 
 // The time clock's vanKey (timeclock/tc-core.js): "Van 12", "van12" and "12" are the same vehicle
 const vanKey = name => String(name || '').toLowerCase().replace(/\b(?:van|vehicle)(?=\b|\d)/g, '').replace(/[^a-z0-9]/g, '');
