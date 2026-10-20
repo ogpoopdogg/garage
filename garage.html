@@ -132,6 +132,19 @@
         .tag.own { color: var(--blue); background: rgba(138, 180, 255, 0.1); }
         .tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
+        /* The Time clock switch on a vehicle's page */
+        .clock-switch { display: inline-flex; align-items: center; gap: 12px; margin-top: 12px; cursor: pointer; max-width: 520px; }
+        .clock-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+        .clock-switch .sw { flex: none; position: relative; width: 46px; height: 26px; border-radius: 13px; background: var(--asphalt-4); border: 1px solid var(--shoulder); transition: background 0.2s var(--ease-out); }
+        .clock-switch .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--muted); transition: transform 0.2s var(--ease-out), background 0.2s; }
+        .clock-switch input:checked + .sw { background: rgba(255, 204, 0, 0.25); border-color: var(--yellow); }
+        .clock-switch input:checked + .sw::after { transform: translateX(20px); background: var(--yellow); }
+        .clock-switch input:focus-visible + .sw { outline: 2px solid var(--yellow); outline-offset: 2px; }
+        .clock-switch input:disabled + .sw { opacity: 0.55; }
+        .clock-switch.locked { cursor: default; }
+        .clock-switch .sw-text { display: flex; flex-direction: column; line-height: 1.3; }
+        .clock-switch .muted { font-size: 0.85rem; }
+
         .select, .input, .textarea {
             height: 42px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--asphalt-3);
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); transition: box-shadow 0.2s; color-scheme: dark; min-width: 0;
@@ -576,7 +589,7 @@
         }
         const {
             auth, db, P, isAdminEmail, displayName, emailKey, dayKey, fmtTime, fmtKey, vehicleList, vanKey, esc, errText, AUTH_MESSAGES,
-            DOW_KEYS, DOW_SHORT, DOW_LONG, oilState, cleanOilPlan, oilPlanFor, oilNextDue, OIL_EVERY_MAX
+            DOW_KEYS, DOW_SHORT, DOW_LONG, oilState, cleanOilPlan, oilPlanFor, oilNextDue, OIL_EVERY_MAX, gpsList, manualVans, VAN_PREFIX
         } = core;
         const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = fa;
         const { ref, onValue, get, update, push, query, orderByChild, startAt, limitToLast, serverTimestamp } = fd;
@@ -1150,7 +1163,7 @@
                     '<div class="v-name">' + esc(v.name) + '</div><div class="v-sub">' + (n ? n + (n === 1 ? " entry" : " entries") : "Nothing saved yet") + (sv ? " · " + sv + " service" : "") + "</div>" +
                     '<div class="tags">' + (x.open ? '<span class="tag warn">' + x.open + (x.open === 1 ? " problem" : " problems") + "</span>" : "") +
                     (x.svc === "overdue" ? '<span class="tag warn">Service overdue</span>' : x.svc === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
-                    (x.oil ? x.oil.tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></button>";
+                    (x.oil ? x.oil.tag : v.listed ? '<span class="tag own">Garage only</span>' : '<span class="tag">Not in the van list</span>') + "</div></button>";
             };
             const list = info.filter(f[2]);
             const main = list.filter(x => x.v.inClock || x.v.listed), gone = list.filter(x => !x.v.inClock && !x.v.listed);
@@ -1171,7 +1184,7 @@
                 if (vehicleByKey(key)) return "There's already a vehicle called " + vehicleByKey(key).name + ".";
                 return "";
             };
-            const name = await ask({ title: "Add a vehicle", sub: "For a vehicle drivers don't pick on the time clock. To let drivers pick it, add it in the time clock under Admin → Vehicles instead; it then shows here by itself.",
+            const name = await ask({ title: "Add a vehicle", sub: "It's only in Garage at first, so drivers can't pick it when they punch in. To let them, turn on Time clock on its page.",
                 label: "Name", placeholder: "e.g. 14", max: g.MAX.vname, ok: "Add vehicle", check: check });
             if (name === null) return;
             const n = g.cleanVehicleName(name).value, key = vanKey(n), base = G.vehicles + "/" + key;
@@ -1213,6 +1226,37 @@
             if (km === null) return "Km not known yet.";
             const fromOdo = s.odo && s.odo.km === km;
             return "Now " + g.fmtKm(km) + (fromOdo ? " (entered " + fmtKey(s.odo.day || dayKey(s.odo.at)) + ")" : " (from the service log)") + ".";
+        }
+        // The Time clock switch: whether drivers can pick this vehicle when they punch in
+        const clockOf = key => g.clockState(key, gpsList(gpsRaw), manualVans(vansRaw), vanKey);
+        function clockSwitchHtml(key) {
+            const c = clockOf(key), on = c.state !== "off", locked = c.state === "gps";
+            const text = locked ? "On: GPS " + esc(c.gpsName) + " in RouteWatcher has this name, so drivers can always pick it."
+                : on ? "On: drivers can pick it when they punch in." : "Off: only in Garage. Drivers can't pick it when they punch in.";
+            return '<label class="clock-switch' + (locked ? " locked" : "") + '"><input type="checkbox" id="clockSwitch"' + (on ? " checked" : "") + (locked ? " disabled" : "") + ">" +
+                '<span class="sw" aria-hidden="true"></span><span class="sw-text"><strong>Time clock</strong><span class="muted">' + text + "</span></span></label>";
+        }
+        // On adds the vehicle to the time clock's vans (the same list as Admin → Vehicles → Vehicles without GPS);
+        // off takes it off that list. Garage keeps the vehicle either way (listed).
+        async function setClock(key, on) {
+            const v = vehicleByKey(key), c = clockOf(key);
+            if (!v || !ready() || c.state === "gps" || (c.state === "on") === on) { render(); return; }
+            const base = G.vehicles + "/" + key;
+            const u = { [base + "/name"]: v.name.slice(0, g.MAX.vname), [base + "/listed"]: true };
+            try {
+                if (offline()) throw { code: "garage/offline" };
+                if (on) {
+                    if (v.name.length > g.CLOCK_NAME_MAX) throw { message: "The time clock only takes names up to " + g.CLOCK_NAME_MAX + " characters." };
+                    u[P.vans + "/" + VAN_PREFIX + push(ref(db, P.vans)).key] = { name: v.name, at: serverTimestamp(), by: by().slice(0, 60) };
+                } else {
+                    const who = g.clockInUse(c.vanIds, (await get(ref(db, P.claims))).val());
+                    if (who) { toast(who + " has " + v.name + " on their shift right now. Turn it off after they punch out, or release it in the time clock under Admin → Vehicles.", true); render(); return; }
+                    c.vanIds.forEach(id => { u[P.vans + "/" + id] = null; });
+                }
+                await write(u, { vkey: key, text: on ? "Time clock turned on: drivers can pick it" : "Time clock turned off: drivers can't pick it" });
+                toast(on ? "Drivers can pick " + v.name + " on the time clock now." : v.name + " is off the time clock. It stays here in Garage.");
+            } catch (err) { toast("Couldn't change it: " + errMsg(err), true); }
+            render();
         }
         function renderVehicle(key) {
             const box = $("vehicleView");
@@ -1268,7 +1312,7 @@
             box.innerHTML = '<div class="v-head"><div><h1>' + esc(v.name) + '</h1><div class="tags" style="margin-top:8px">' +
                 (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
-                (v.inClock ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
+                (v.inClock ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Garage only</span>' : '<span class="tag">Not in the van list</span>') + "</div>" + clockSwitchHtml(key) + "</div>" +
                 '<div class="panel-actions"><button type="button" class="btn sm" id="odoBtn">Update km</button><button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button></div></div>' +
                 '<div class="v-cols"><div>' +
                     '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
@@ -1490,7 +1534,7 @@
             const n = Object.keys(s.items || {}).length + Object.keys(s.service || {}).length + Object.keys(s.reminders || {}).length;
             const ok = await ask({ title: "Remove " + v.name + "?", danger: true, ok: "Remove",
                 sub: "It goes to the Trash" + (n ? " with its " + n + (n === 1 ? " entry" : " entries") : "") + ", where you can put it back for 30 days." +
-                    (v.inClock ? " Drivers can still pick it on the time clock; to stop that, remove it in the time clock under Admin → Vehicles." : "") });
+                    (v.inClock ? " Drivers can still pick it on the time clock" + (clockOf(key).state === "gps" ? " (it has a GPS unit in RouteWatcher)." : "; to stop that, turn off Time clock on its page first.") : "") });
             if (ok === null) return;
             const data = { name: v.name };
             for (const k of ["listed", "items", "service", "reminders", "odo"]) if (s[k] !== undefined) data[k] = s[k];
@@ -1526,6 +1570,10 @@
             else if (e.target.closest("#addProblem")) addProblem(key);
             else if (e.target.closest("#odoBtn")) updateKm(key);
             else if (e.target.closest("#removeVehicle")) removeVehicle(key);
+        });
+        $("vehicleView").addEventListener("change", e => {
+            const key = currentKey();
+            if (key && e.target.id === "clockSwitch") setClock(key, e.target.checked);
         });
 
         // ---------- Trash ----------
