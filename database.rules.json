@@ -12,6 +12,23 @@
           "order": {
             ".validate": "newData.isNumber()"
           },
+          "fields": {
+            "$f": {
+              ".validate": "$f.matches(/^(label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/) && newData.hasChildren(['name'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+              },
+              "order": {
+                ".validate": "newData.isNumber()"
+              },
+              "off": {
+                ".validate": "newData.isBoolean()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
           "$other": {
             ".validate": false
           }
@@ -25,7 +42,7 @@
           },
           "items": {
             "$id": {
-              ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['cat', 'label'])",
+              ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['cat']) && (newData.hasChild('label') || newData.hasChild('value') || newData.hasChild('part') || newData.hasChild('link') || newData.hasChild('note') || newData.hasChild('extra'))",
               "cat": {
                 ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
               },
@@ -43,6 +60,12 @@
               },
               "note": {
                 ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 500"
+              },
+              "extra": {
+                ".validate": "newData.hasChildren()",
+                "$f": {
+                  ".validate": "$f.matches(/^x[A-Za-z0-9_-]{1,30}$/) && newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
+                }
               },
               "at": {
                 ".validate": "newData.isNumber()"

@@ -6,12 +6,15 @@
 // from vehicle to vehicle, so they say nothing about which vehicle a record is about.
 //
 // Database layout (same Firebase project as the time clock, see README):
-//   garage/categories/{catId}                    { name, order }  the sections every vehicle has (Lights, Fluids...)
+//   garage/categories/{catId}                    { name, order, fields }  the sections every vehicle has (Lights, Fluids...)
+//       fields/{key}                               { name, order, off }  which fields its entries have and what each is
+//                                                  called (see categoryFields); no fields: the five built-in ones
 //   garage/vehicles/{vkey}                       vkey is vanKey(name), the same key timeclock/oil_last uses
 //       name                                       the vehicle's name
 //       listed                                     true: added in Garage (it isn't in the time clock's van list)
 //       removed                                    true: removed in Garage (hidden even if the time clock lists it)
-//       items/{id}                                 { cat, label, value, part, link, note, added, addedBy, at, by }
+//       items/{id}                                 { cat, label, value, part, link, note, extra, added, addedBy, at, by }
+//                                                  extra/{key}: the category's own fields; at least one field is filled in
 //       service/{id}                               { day: "YYYY-MM-DD", what, km, cost, note, added, addedBy, at, by }
 //       reminders/{id}                             { what, dueKm, dueDay, everyKm, everyMonths, note, added, addedBy, at, by }
 //       odo                                        { km, day, at, by }  the last km reading someone entered
@@ -45,8 +48,93 @@ export const HISTORY_ALL = "_all";             // garage/history key for changes
 export function sortCategories(cats) {
     return Object.entries(cats || {})
         .filter(([, c]) => c && String(c.name || "").trim())
-        .map(([id, c]) => ({ id: id, name: String(c.name).trim(), order: typeof c.order === "number" ? c.order : 999 }))
+        .map(([id, c]) => ({ id: id, name: String(c.name).trim(), order: typeof c.order === "number" ? c.order : 999, fields: categoryFields(c) }))
         .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+}
+
+// ---------- A category's fields ----------
+// The five fields every entry could always have. A category can turn each off and give it its own name, and add its
+// own text fields (key "x" + an id, saved in the entry's extra/{key}).
+export const BUILTIN_FIELDS = [
+    { key: "label", name: "What", max: MAX.label, placeholder: "Headlight" },
+    { key: "value", name: "Type or size", max: MAX.value, placeholder: "H11" },
+    { key: "part", name: "Part number", max: MAX.part, placeholder: "Optional" },
+    { key: "link", name: "Where to buy (link)", max: MAX.link, placeholder: "Optional, https://…", link: true, wide: true },
+    { key: "note", name: "Note", max: MAX.note, placeholder: "Optional", long: true, wide: true }
+];
+export const EXTRA_MAX = 200, FIELDS_MAX = 20;
+export const isExtraKey = k => /^x[A-Za-z0-9_-]{1,30}$/.test(k);
+const builtin = k => BUILTIN_FIELDS.find(f => f.key === k);
+
+// A category's fields in order, the ones turned off too: [{ key, name, on, extra, max, placeholder, link, long, wide }].
+// A category saved before fields existed (or the "Other" group) has the five built-in ones, all on.
+export function categoryFields(cat) {
+    const raw = cat && cat.fields && typeof cat.fields === "object" ? cat.fields : null;
+    if (!raw) return BUILTIN_FIELDS.map(f => Object.assign({}, f, { on: true, extra: false }));
+    const list = BUILTIN_FIELDS.map((f, i) => {
+        const r = raw[f.key];
+        const name = r && String(r.name || "").trim();
+        return Object.assign({}, f, { name: name || f.name, on: !!r && !r.off, extra: false, order: r && typeof r.order === "number" ? r.order : 100 + i, placeholder: !name || name === f.name ? f.placeholder : "" });
+    });
+    for (const [k, r] of Object.entries(raw)) {
+        const name = r && String(r.name || "").trim();
+        if (isExtraKey(k) && name) list.push({ key: k, name: name, on: !r.off, extra: true, max: EXTRA_MAX, placeholder: "", order: typeof r.order === "number" ? r.order : 999 });
+    }
+    return list.sort((a, b) => a.order - b.order).map(f => { delete f.order; return f; });
+}
+
+// The fields from the category editor ([{ key, name, on }], in order) ready to save as garage/categories/{id}/fields:
+// { ok: true, value } or { ok: false, error }
+export function cleanFields(rows) {
+    const value = {};
+    let on = 0;
+    const names = new Set();
+    for (const [i, f] of (rows || []).entries()) {
+        const b = builtin(f.key);
+        if (!b && !isExtraKey(f.key)) continue;
+        const name = trim(f.name, MAX.catName) || (b ? b.name : "");
+        if (!name) { if (f.on) return { ok: false, error: "Give each field you check a name." }; continue; }
+        if (f.on) {
+            if (names.has(name.toLowerCase())) return { ok: false, error: "Two fields are called " + name + ". Give each one its own name." };
+            names.add(name.toLowerCase()); on++;
+        }
+        value[f.key] = { name: name, order: i };
+        if (!f.on) value[f.key].off = true;
+    }
+    if (!on) return { ok: false, error: "Check at least one field." };
+    if (Object.keys(value).length > FIELDS_MAX) return { ok: false, error: "A category can have " + FIELDS_MAX + " fields at most." };
+    return { ok: true, value: value };
+}
+
+// What a category's fields come to, for the Changes list: "Model number, Note"
+export const fieldsText = fields => fields.filter(f => f.on).map(f => f.name).join(", ");
+
+// Every field name any category gives a key, so an entry's own fields still have a name after it moves category.
+export function fieldNames(cats) {
+    const out = {};
+    for (const c of cats || []) for (const f of c.fields || []) if (f.extra && !out[f.key]) out[f.key] = f.name;
+    return out;
+}
+
+// The fields an entry shows, in its category's order, with its text: the category's fields that are on, plus any
+// other field the entry has something in (so nothing saved is ever hidden). [{ ...field, text }]
+export function entryFields(it, cat, names) {
+    const fields = cat && cat.fields ? cat.fields : categoryFields(null);
+    const text = f => String((f.extra ? (it && it.extra || {})[f.key] : it && it[f.key]) || "");
+    const out = fields.filter(f => f.on || text(f)).map(f => Object.assign({}, f, { text: text(f) }));
+    for (const [k, v] of Object.entries((it && it.extra) || {}))
+        if (v && !out.some(f => f.key === k)) out.push({ key: k, name: (names && names[k]) || "Other field", on: false, extra: true, max: EXTRA_MAX, placeholder: "", text: String(v) });
+    return out;
+}
+
+const hasText = v => v !== undefined && v !== null && String(v).trim() !== "";
+export const hasContent = it => !!(it && (["label", "value", "part", "link", "note"].some(k => hasText(it[k])) || Object.values(it.extra || {}).some(hasText)));
+// What an entry is called in lists and the Changes list: its name, or else the first thing filled in
+export function entryTitle(it) {
+    if (!it) return "";
+    for (const k of ["label", "value", "part"]) if (hasText(it[k])) return String(it[k]);
+    const x = Object.values(it.extra || {}).find(hasText);
+    return x ? String(x) : hasText(it.note) ? String(it.note).slice(0, 60) : hasText(it.link) ? String(it.link) : "";
 }
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
@@ -117,8 +205,8 @@ export function oilList(shiftsByEk, since, oilState, keyOf) {
 
 // A vehicle's entries grouped by category, in category order. Entries whose category was deleted go under "Other".
 export function itemGroups(items, cats) {
-    const list = Object.entries(items || {}).filter(([, it]) => it && it.label).map(([id, it]) => Object.assign({ id: id }, it))
-        .sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: "base" }));
+    const list = Object.entries(items || {}).filter(([, it]) => hasContent(it)).map(([id, it]) => Object.assign({ id: id }, it))
+        .sort((a, b) => entryTitle(a).localeCompare(entryTitle(b), undefined, { numeric: true, sensitivity: "base" }));
     const known = new Set(cats.map(c => c.id));
     const groups = cats.map(c => ({ cat: c, items: list.filter(it => it.cat === c.id) }));
     const other = list.filter(it => !known.has(it.cat));
@@ -144,9 +232,9 @@ export function searchGarage(q, vehicles, stored, cats) {
         const s = stored && stored[v.key];
         if (!s) continue;
         for (const [id, it] of Object.entries(s.items || {})) {
-            if (!it || !it.label) continue;
+            if (!hasContent(it)) continue;
             const cn = catName(it.cat);
-            if (hit([v.name, "van " + v.name, cn, it.label, it.value, it.part, it.note].filter(Boolean).join(" "))) out.push({ vehicle: v, kind: "item", catName: cn, entry: Object.assign({ id: id }, it) });
+            if (hit([v.name, "van " + v.name, cn, it.label, it.value, it.part, it.note].concat(Object.values(it.extra || {})).filter(Boolean).join(" "))) out.push({ vehicle: v, kind: "item", catName: cn, entry: Object.assign({ id: id }, it) });
         }
         for (const [id, e] of Object.entries(s.service || {})) {
             if (!e || !e.what) continue;
@@ -311,24 +399,27 @@ const cell = v => {
 };
 export function toCsv(rows) { return rows.map(r => r.map(cell).join(",")).join("\r\n") + "\r\n"; }
 
-export const CSV_HEAD = ["Vehicle", "Section", "Category", "What", "Type or size", "Part #", "Link", "Date", "Km", "Cost", "Status", "Note", "Added by", "Last changed by"];
+export const CSV_HEAD = ["Vehicle", "Section", "Category", "What", "Type or size", "Part #", "Link", "Date", "Km", "Cost", "Status", "Note", "Added by", "Last changed by", "Other fields"];
 // Every vehicle's info, service log, reminders and problems as spreadsheet rows (the header row first).
 // fmtTs turns a time into text; problems: reportList() output.
 export function csvRows(vehicles, stored, cats, problems, fmtTs) {
     const rows = [CSV_HEAD];
     const catName = id => (cats.find(c => c.id === id) || { name: "Other" }).name;
+    const names = fieldNames(cats);
+    // The category's own fields, "Model number: 1234; Colour: white"
+    const extras = it => entryFields(it, cats.find(c => c.id === it.cat), names).filter(f => f.extra && f.text).map(f => f.name + ": " + f.text).join("; ");
     const ts = v => typeof v === "number" ? fmtTs(v) : "";
     for (const v of vehicles) {
         const s = stored[v.key] || {};
         for (const gr of itemGroups(s.items, cats)) for (const it of gr.items)
-            rows.push([v.name, "Info", catName(it.cat), it.label, it.value, it.part, it.link, "", "", "", "", it.note, it.addedBy || it.by, it.by]);
+            rows.push([v.name, "Info", catName(it.cat), it.label, it.value, it.part, it.link, "", "", "", "", it.note, it.addedBy || it.by, it.by, extras(it)]);
         for (const e of serviceList(s.service))
-            rows.push([v.name, "Service", "", e.what, "", "", "", e.day, e.km, e.cost, "Done", e.note, e.addedBy || e.by, e.by]);
+            rows.push([v.name, "Service", "", e.what, "", "", "", e.day, e.km, e.cost, "Done", e.note, e.addedBy || e.by, e.by, ""]);
         for (const r of Object.values(s.reminders || {})) if (r && r.what)
             rows.push([v.name, "Reminder", "", r.what, [r.everyKm ? "every " + r.everyKm + " km" : "", r.everyMonths ? "every " + r.everyMonths + " months" : ""].filter(Boolean).join(", "),
-                "", "", r.dueDay, r.dueKm, "", "Due", r.note, r.addedBy || r.by, r.by]);
+                "", "", r.dueDay, r.dueKm, "", "Due", r.note, r.addedBy || r.by, r.by, ""]);
         for (const p of problems.filter(p => p.vkey === v.key))
-            rows.push([v.name, "Problem", "", p.text, "", "", "", ts(p.at), "", "", p.status === "open" ? "Open" : "Fixed" + (p.fixNote ? ": " + p.fixNote : ""), "", p.name || "", p.by || ""]);
+            rows.push([v.name, "Problem", "", p.text, "", "", "", ts(p.at), "", "", p.status === "open" ? "Open" : "Fixed" + (p.fixNote ? ": " + p.fixNote : ""), "", p.name || "", p.by || "", ""]);
     }
     return rows;
 }
@@ -348,18 +439,27 @@ export function cleanLink(v) {
 }
 
 // An entry from the form, ready to save: { ok: true, value } or { ok: false, error }
-export function cleanItem(raw) {
-    const label = trim(raw.label, MAX.label);
-    if (!label) return { ok: false, error: "Give it a name, for example Headlight." };
+// raw: { cat, label, value, part, link, note, extra: { key: text } }. fields: the fields the form showed (entryFields);
+// when the category has its "What" field on, that one has to be filled in, otherwise any one field will do.
+export function cleanItem(raw, fields) {
     if (!raw.cat) return { ok: false, error: "Pick a category." };
+    const labelField = fields ? fields.find(f => f.key === "label" && f.on) : builtin("label");
+    const label = trim(raw.label, MAX.label);
+    if (labelField && !label) return { ok: false, error: labelField.name === "What" ? "Give it a name, for example Headlight." : "Fill in " + labelField.name + "." };
     const link = cleanLink(raw.link);
-    if (link === null) return { ok: false, error: "The link should be a web address, for example https://www.partsource.ca/…" };
-    const value = { cat: String(raw.cat).slice(0, 40), label: label };
+    const linkName = (fields && fields.find(f => f.key === "link") || { name: "The link" }).name;
+    if (link === null) return { ok: false, error: (linkName === "Where to buy (link)" ? "The link" : linkName) + " should be a web address, for example https://www.partsource.ca/…" };
+    const value = { cat: String(raw.cat).slice(0, 40) };
     const v = trim(raw.value, MAX.value), part = trim(raw.part, MAX.part), note = trim(raw.note, MAX.note);
+    if (label) value.label = label;
     if (v) value.value = v;
     if (part) value.part = part;
     if (link) value.link = link;
     if (note) value.note = note;
+    const extra = {};
+    for (const [k, x] of Object.entries(raw.extra || {})) { const t = trim(x, EXTRA_MAX); if (isExtraKey(k) && t) extra[k] = t; }
+    if (Object.keys(extra).length) value.extra = extra;
+    if (!hasContent(value)) return { ok: false, error: "Fill in at least one field." };
     return { ok: true, value: value };
 }
 

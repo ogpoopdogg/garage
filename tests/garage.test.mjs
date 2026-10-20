@@ -5,7 +5,8 @@ import {
   defaultCategories, sortCategories, garageVehicles, reportList, oilList, shiftVehicle,
   itemGroups, serviceList, searchGarage, cleanItem, cleanService, cleanLink,
   addMonths, daysBetween, currentKm, reminderState, reminderList, serviceDue, cleanReminder, nextReminder, cleanOdo,
-  stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS
+  stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS,
+  categoryFields, cleanFields, fieldsText, fieldNames, entryFields, entryTitle, hasContent
 } from '../garage-core.js';
 
 // The time clock's vanKey (timeclock/tc-core.js): "Van 12", "van12" and "12" are the same vehicle
@@ -193,4 +194,43 @@ test('spreadsheet: quotes where needed, and text that looks like a formula is ma
   assert.deepStrictEqual(rows.slice(1).map(r => [r[1], r[3]]), [['Info', 'Headlight'], ['Service', 'Oil change'], ['Reminder', 'Oil change'], ['Problem', 'Light out']]);
   assert.strictEqual(rows[4][10], 'Fixed: bulb');
   assert.ok(rows.every(r => r.length === rows[0].length));
+});
+
+test('category fields: old categories have all five; a category can keep only the ones it wants, renamed, and add its own', () => {
+  assert.deepStrictEqual(categoryFields({ name: 'Lights' }).map(f => [f.key, f.name, f.on]),
+    [['label', 'What', true], ['value', 'Type or size', true], ['part', 'Part number', true], ['link', 'Where to buy (link)', true], ['note', 'Note', true]]);
+  const only = cleanFields([{ key: 'label', name: '', on: false }, { key: 'value', name: ' Model number ', on: true }, { key: 'part', on: false }, { key: 'link', on: false }, { key: 'note', on: false }]);
+  assert.strictEqual(only.ok, true);
+  assert.deepStrictEqual(only.value.value, { name: 'Model number', order: 1 });
+  assert.deepStrictEqual(only.value.label, { name: 'What', order: 0, off: true });
+  const cats = sortCategories({ m: { name: 'Model', order: 0, fields: only.value } });
+  assert.strictEqual(fieldsText(cats[0].fields), 'Model number');
+  // its own fields, in the order given
+  const own = cleanFields([{ key: 'xA1', name: 'Colour', on: true }, { key: 'label', name: 'Item', on: true }, { key: 'bad key', name: 'x', on: true }]);
+  assert.deepStrictEqual(categoryFields({ fields: own.value }).filter(f => f.on).map(f => f.key + ':' + f.name), ['xA1:Colour', 'label:Item']);
+  assert.strictEqual(cleanFields([{ key: 'label', name: 'x', on: false }]).ok, false);
+  assert.strictEqual(cleanFields([{ key: 'xA', name: '', on: true }]).ok, false);
+  assert.strictEqual(cleanFields([{ key: 'label', name: 'Size', on: true }, { key: 'value', name: 'size', on: true }]).ok, false);
+});
+
+test('entries in a category with only a Model number field', () => {
+  const cats = sortCategories({ m: { name: 'Model', order: 0, fields: { label: { name: 'What', order: 0, off: true }, value: { name: 'Model number', order: 1 }, xC: { name: 'Colour', order: 2 } } } });
+  const fields = cats[0].fields;
+  const shown = entryFields({}, cats[0], fieldNames(cats));
+  assert.deepStrictEqual(shown.map(f => f.name), ['Model number', 'Colour']);
+  assert.deepStrictEqual(cleanItem({ cat: 'm', value: ' ABC-123 ', extra: { xC: 'white', 'bad key': 'x' } }, shown), { ok: true, value: { cat: 'm', value: 'ABC-123', extra: { xC: 'white' } } });
+  assert.strictEqual(cleanItem({ cat: 'm', value: ' ' }, shown).ok, false);
+  // a field the category no longer uses still shows while the entry has something in it
+  assert.deepStrictEqual(entryFields({ label: 'Old', value: '1' }, cats[0], {}).map(f => f.key), ['label', 'value', 'xC']);
+  assert.deepStrictEqual(entryFields({ extra: { xGone: 'z' } }, cats[0], { xGone: 'Size' }).map(f => f.name), ['Model number', 'Colour', 'Size']);
+  assert.strictEqual(entryTitle({ value: 'ABC-123' }), 'ABC-123');
+  assert.strictEqual(entryTitle({ extra: { xC: 'white' } }), 'white');
+  assert.strictEqual(hasContent({ cat: 'm' }), false);
+  const gr = itemGroups({ a: { cat: 'm', value: 'B2' }, b: { cat: 'm', label: 'A1' }, c: { cat: 'm' } }, cats);
+  assert.deepStrictEqual(gr[0].items.map(i => i.id), ['b', 'a']);
+  const vehicles = [{ key: '12', name: '12' }];
+  assert.strictEqual(searchGarage('white', vehicles, { 12: { items: { a: { cat: 'm', extra: { xC: 'white' } } } } }, cats).length, 1);
+  const rows = csvRows(vehicles, { 12: { items: { a: { cat: 'm', value: 'B2', extra: { xC: 'white' } } } } }, cats, [], String);
+  assert.strictEqual(rows[1][rows[0].indexOf('Other fields')], 'Colour: white');
+  assert.ok(fields.length === 6);
 });

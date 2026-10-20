@@ -13,6 +13,12 @@ One page for everything we know about each vehicle:
   Filters, Wipers, Battery, Plate / VIN and Notes; on **Categories** you can rename, reorder,
   delete or add your own. Deleting one moves its entries to *Other* on each vehicle; nothing
   is deleted with it.
+- **Fields:** each category picks the fields its entries have (**Fields** on its row, or when you
+  add one). Check the ones it uses, name each one (for example only a *Model number*), put them
+  in order, and add fields of its own. Categories from before this have all five built-in fields
+  (What, Type or size, Part number, Where to buy, Note). Unchecking a field hides it on new
+  entries; an entry that already has something in it still shows it, and a field of its own
+  can only be removed once no entry uses it.
 - **Vehicle problems:** the reports drivers send from **Vehicle Check** on the time clock, plus
   any an admin adds with **+ Add problem**. **Mark fixed** saves a note, who fixed it and when;
   fixed problems stay on the vehicle and on the **Vehicle checks** tab, and **Reopen** opens one again.
@@ -62,9 +68,9 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 
 | Path | What | Written by |
 | --- | --- | --- |
-| `garage/categories/{id}` | `{ name, order }` | Garage |
+| `garage/categories/{id}` | `{ name, order, fields }`; `fields/{key}`: `{ name, order, off }`, key `label`, `value`, `part`, `link`, `note` or `x…` (its own); no `fields`: all five built-in ones | Garage |
 | `garage/vehicles/{key}` | `{ name, listed, removed }`: `listed` added in Garage, `removed` removed in Garage | Garage |
-| `garage/vehicles/{key}/items/{id}` | `{ cat, label, value, part, link, note, added, addedBy, at, by }` | Garage |
+| `garage/vehicles/{key}/items/{id}` | `{ cat, label, value, part, link, note, extra, added, addedBy, at, by }`; `extra/{key}`: the category's own fields; at least one field filled in | Garage |
 | `garage/vehicles/{key}/service/{id}` | `{ day, what, km, cost, note, added, addedBy, at, by }` | Garage |
 | `garage/vehicles/{key}/reminders/{id}` | `{ what, dueKm, dueDay, everyKm, everyMonths, note, added, addedBy, at, by }` | Garage |
 | `garage/vehicles/{key}/odo` | `{ km, day, at, by }`: the last km entered | Garage |
