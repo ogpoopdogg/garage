@@ -577,6 +577,11 @@
             auth, db, P, isAdminEmail, displayName, emailKey, dayKey, fmtTime, fmtKey, vehicleList, vanKey, esc, errText, AUTH_MESSAGES,
             DOW_KEYS, DOW_SHORT, DOW_LONG, oilState, cleanOilPlan, oilPlanFor, oilNextDue, OIL_EVERY_MAX
         } = core;
+        // Failed and refused sign-ins go to the E&C security log (the Security section of the usage page).
+        // Taken from tc-core.js only when it has them, so Garage keeps working with an older time clock.
+        const noReport = () => {};
+        const reportFailedSignIn = typeof core.reportFailedSignIn === "function" ? core.reportFailedSignIn : noReport;
+        const reportRefusedSignIn = typeof core.reportRefusedSignIn === "function" ? core.reportRefusedSignIn : noReport;
         const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = fa;
         const { ref, onValue, get, update, push, query, orderByChild, startAt, limitToLast, serverTimestamp } = fd;
 
@@ -691,10 +696,10 @@
             const msg = $("gateMsg"), btn = $("gateBtn");
             const email = $("gEmail").value.trim(), pass = $("gPass").value;
             if (!email || !pass) { msg.textContent = "Enter your email and password."; return; }
-            if (!isAdminEmail(email)) { msg.textContent = "Only the time clock admins can open the garage."; return; }
+            if (!isAdminEmail(email)) { reportFailedSignIn(email, { code: "app/not-admin-email" }, "garage"); msg.textContent = "Only the time clock admins can open the garage."; return; }
             msg.textContent = ""; btn.disabled = true; btn.textContent = "Signing in…";
             try { await signInWithEmailAndPassword(auth, email, pass); }
-            catch (err) { msg.textContent = AUTH_MESSAGES[err && err.code] || "Sign-in failed. Please try again."; $("gPass").value = ""; }
+            catch (err) { reportFailedSignIn(email, err, "garage"); msg.textContent = AUTH_MESSAGES[err && err.code] || "Sign-in failed. Please try again."; $("gPass").value = ""; }
             btn.disabled = false; btn.textContent = "Sign in";
         });
         const leave = () => { forgetCopy(); signOut(auth); };
@@ -723,6 +728,7 @@
                 return;
             }
             if (!isAdminEmail(u.email)) {
+                reportRefusedSignIn(u, "Not a time clock admin", "garage");
                 $("gateTitle").textContent = "Admins only";
                 $("gateSub").textContent = "You're signed in as " + u.email + ". Only the time clock admins can open the garage.";
                 $("gateFields").hidden = true; $("gateSwitch").hidden = false;
