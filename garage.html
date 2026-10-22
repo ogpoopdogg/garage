@@ -271,8 +271,18 @@
         .cat-row { display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
         .cat-row .input { flex: 1; }
         .cat-row .count { color: var(--dim); font-size: 0.85rem; white-space: nowrap; padding: 0 6px; }
+        .cat-row .cat-fields { min-width: 0; max-width: 34%; }
+        .cat-row .cat-fields span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cat-add { display: flex; gap: 8px; margin-top: 14px; max-width: 640px; }
         .cat-add .input { flex: 1; }
+        /* The fields in the category window: a checkbox, its name, move and remove */
+        .fld-rows { display: grid; gap: 6px; margin-bottom: 10px; }
+        .fld-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
+        .fld-row .input { flex: 1; width: 0; min-width: 0; height: 38px; }
+        .fld-row.off .input { color: var(--dim); }
+        .fld-row input[type=checkbox] { flex: none; width: 20px; height: 20px; accent-color: var(--yellow); cursor: pointer; }
+        .fld-row .fld-kind { color: var(--dim); font-size: 0.8rem; white-space: nowrap; }
+        .fld-row .icon-btn[hidden] { display: none; }
 
         /* ---------- Modal ---------- */
         .modal-backdrop {
@@ -330,6 +340,10 @@
             .tab .tab-text { display: none; }
             .tab { padding: 0 14px; }
             .modal-grid { grid-template-columns: 1fr; }
+            .cat-row { flex-wrap: wrap; }
+            .cat-row .input { flex-basis: 100%; width: 0; }
+            .cat-row .cat-fields { max-width: none; flex: 1; width: 0; }
+            .fld-row .fld-kind { display: none; }
             .admin-link .al-long { display: none; }
             .card { padding: 16px; }
         }
@@ -438,13 +452,13 @@
         <!-- Categories -->
         <section class="panel" id="panel-categories" role="tabpanel" hidden>
             <div class="panel-head">
-                <div><h1 class="panel-title">Categories</h1><p class="panel-sub">The sections every vehicle has. Rename, reorder, add your own.</p></div>
+                <div><h1 class="panel-title">Categories</h1><p class="panel-sub">The sections every vehicle has. Rename, reorder, add your own, and pick the fields each one has.</p></div>
             </div>
             <div class="card">
                 <div class="cat-rows" id="catRows"></div>
                 <form class="cat-add" id="catAdd">
                     <input class="input" id="catName" maxlength="40" placeholder="New category, e.g. Brakes" autocomplete="off" aria-label="New category name">
-                    <button type="submit" class="btn primary">Add</button>
+                    <button type="submit" class="btn primary">Add…</button>
                 </form>
             </div>
             <div class="card"><h3>Changes</h3><p class="hint" style="margin-bottom:8px">Changes to the categories, and to the oil check schedule for all vehicles.</p><div id="allHistCat"></div></div>
@@ -474,11 +488,7 @@
             <p class="modal-sub" id="imSub"></p>
             <div class="modal-grid">
                 <div class="field"><label for="imCat">Category</label><select class="select" id="imCat"></select></div>
-                <div class="field"><label for="imLabel">What</label><input class="input" id="imLabel" maxlength="60" placeholder="Headlight" autocomplete="off"></div>
-                <div class="field"><label for="imValue">Type or size</label><input class="input" id="imValue" maxlength="200" placeholder="H11" autocomplete="off"></div>
-                <div class="field"><label for="imPart">Part number</label><input class="input" id="imPart" maxlength="80" placeholder="Optional" autocomplete="off"></div>
-                <div class="field full"><label for="imLink">Where to buy (link)</label><input class="input" id="imLink" type="url" maxlength="500" placeholder="Optional, https://…" autocomplete="off" inputmode="url"></div>
-                <div class="field full"><label for="imNote">Note</label><textarea class="textarea" id="imNote" maxlength="500" placeholder="Optional"></textarea></div>
+                <div id="imFields" style="display: contents"></div>
             </div>
             <p class="modal-msg" id="imMsg" role="alert"></p>
             <div class="modal-foot">
@@ -486,6 +496,25 @@
                 <span class="spacer"></span>
                 <button type="button" class="btn ghost" data-close>Cancel</button>
                 <button type="submit" class="btn primary" id="imSave">Save</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Add a category, or change its fields -->
+    <div class="modal-backdrop" id="catModal">
+        <form class="modal" role="dialog" aria-modal="true" aria-labelledby="cmTitle" id="catForm" novalidate>
+            <h2 id="cmTitle">Add a category</h2>
+            <p class="modal-sub" id="cmSub">Every vehicle gets it.</p>
+            <div class="field"><label for="cmName">Name</label><input class="input" id="cmName" maxlength="40" placeholder="e.g. Brakes" autocomplete="off"></div>
+            <div class="label" style="margin-bottom:6px">Fields</div>
+            <p class="hint muted" style="margin-bottom:10px;font-size:0.9rem">Check the fields its entries have, and call each one what you like. Unchecking hides a field; anything already saved in it still shows.</p>
+            <div class="fld-rows" id="cmFields"></div>
+            <button type="button" class="btn sm ghost" id="cmAddField">+ Add a field</button>
+            <p class="modal-msg" id="cmMsg" role="alert"></p>
+            <div class="modal-foot">
+                <span class="spacer"></span>
+                <button type="button" class="btn ghost" data-close>Cancel</button>
+                <button type="submit" class="btn primary" id="cmSave">Save</button>
             </div>
         </form>
     </div>
@@ -578,6 +607,11 @@
             auth, db, P, isAdminEmail, displayName, emailKey, dayKey, fmtTime, fmtKey, vehicleList, vanKey, esc, errText, AUTH_MESSAGES,
             DOW_KEYS, DOW_SHORT, DOW_LONG, oilState, cleanOilPlan, oilPlanFor, oilNextDue, OIL_EVERY_MAX
         } = core;
+        // Failed and refused sign-ins go to the E&C security log (the Security section of the usage page).
+        // Taken from tc-core.js only when it has them, so Garage keeps working with an older time clock.
+        const noReport = () => {};
+        const reportFailedSignIn = typeof core.reportFailedSignIn === "function" ? core.reportFailedSignIn : noReport;
+        const reportRefusedSignIn = typeof core.reportRefusedSignIn === "function" ? core.reportRefusedSignIn : noReport;
         const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = fa;
         const { ref, onValue, get, update, push, query, orderByChild, startAt, limitToLast, serverTimestamp } = fd;
 
@@ -693,10 +727,10 @@
             const msg = $("gateMsg"), btn = $("gateBtn");
             const email = $("gEmail").value.trim(), pass = $("gPass").value;
             if (!email || !pass) { msg.textContent = "Enter your email and password."; return; }
-            if (!isAdminEmail(email)) { msg.textContent = "Only the time clock admins can open the garage."; return; }
+            if (!isAdminEmail(email)) { reportFailedSignIn(email, { code: "app/not-admin-email" }, "garage"); msg.textContent = "Only the time clock admins can open the garage."; return; }
             msg.textContent = ""; btn.disabled = true; btn.textContent = "Signing in…";
             try { await signInWithEmailAndPassword(auth, email, pass); }
-            catch (err) { msg.textContent = AUTH_MESSAGES[err && err.code] || "Sign-in failed. Please try again."; $("gPass").value = ""; }
+            catch (err) { reportFailedSignIn(email, err, "garage"); msg.textContent = AUTH_MESSAGES[err && err.code] || "Sign-in failed. Please try again."; $("gPass").value = ""; }
             btn.disabled = false; btn.textContent = "Sign in";
         });
         const leave = () => { forgetCopy(); signOut(auth); };
@@ -725,6 +759,7 @@
                 return;
             }
             if (!isAdminEmail(u.email)) {
+                reportRefusedSignIn(u, "Not a time clock admin", "garage");
                 $("gateTitle").textContent = "Admins only";
                 $("gateSub").textContent = "You're signed in as " + u.email + ". Only the time clock admins can open the garage.";
                 $("gateFields").hidden = true; $("gateSwitch").hidden = false;
@@ -1130,7 +1165,8 @@
                 const hits = g.searchGarage(q, vehicles, stored, cats);
                 box.innerHTML = hits.length ? '<div class="results">' + hits.map(h => {
                     const e = h.entry;
-                    const what = h.kind === "item" ? esc(e.label) + (e.value ? " <span>· " + esc(e.value) + "</span>" : "") + (e.part ? " <span>· #" + esc(e.part) + "</span>" : "")
+                    const title = g.entryTitle(e);
+                    const what = h.kind === "item" ? esc(title) + (e.label && e.value ? " <span>· " + esc(e.value) + "</span>" : "") + (e.part && e.part !== title ? " <span>· #" + esc(e.part) + "</span>" : "")
                         : h.kind === "service" ? esc(e.what) + " <span>· " + esc(fmtKey(e.day)) + "</span>"
                         : esc(e.what) + (e.dueDay ? " <span>· " + esc(fmtKey(e.dueDay)) + "</span>" : "") + (typeof e.dueKm === "number" ? " <span>· " + esc(g.fmtKm(e.dueKm)) + "</span>" : "");
                     return '<button type="button" class="result" data-open="' + esc(h.vehicle.key) + '"><div><div class="r-where">' + esc(h.vehicle.name) + " · " + esc(h.catName) + '</div><div class="r-what">' + what + "</div></div></button>";
@@ -1234,19 +1270,34 @@
             const rems = g.reminderList(s.reminders, g.currentKm(s), today());
             const svcDue = rems.length && rems[0].st.state !== "ok" ? rems[0].st.state : "";
 
-            const itemHtml = it => {
-                const link = it.link ? g.cleanLink(it.link) : "";
+            // An entry, laid out by its category's fields: "Headlight: H11" on top (or the first field filled in, with its
+            // name), the other fields and the link under it, then the note
+            const names = g.fieldNames(cats);
+            const itemHtml = (it, cat) => {
+                const fs = g.entryFields(it, cat, names).filter(f => f.text);
+                const lab = fs.find(f => f.key === "label"), val = fs.find(f => f.key === "value");
+                let rest = fs.filter(f => f.key !== "link" && f.key !== "note"), head;
+                if (lab) {
+                    head = '<span class="i-label">' + esc(lab.text) + (val ? ":</span> <span class=\"i-value\">" + esc(val.text) + "</span>" : "</span>");
+                    rest = rest.filter(f => f !== lab && f !== val);
+                } else if (rest.length) {
+                    head = '<span class="i-label">' + esc(rest[0].name) + ':</span> <span class="i-value">' + esc(rest[0].text) + "</span>";
+                    rest = rest.slice(1);
+                } else head = '<span class="i-label">' + esc((fs[0] || { name: "" }).name) + "</span>";
+                const lf = fs.find(f => f.key === "link"), nf = fs.find(f => f.key === "note");
+                const link = lf ? g.cleanLink(lf.text) : "";
                 let host = "";
                 try { host = link ? new URL(link).hostname.replace(/^www\./, "") : ""; } catch (e) { host = ""; }
-                return '<div class="item"><div class="i-main"><span class="i-label">' + esc(it.label) + (it.value ? ":</span> <span class=\"i-value\">" + esc(it.value) + "</span>" : "</span>") + "</div>" +
-                    '<div class="i-tools"><button type="button" class="icon-btn" data-edit-item="' + esc(it.id) + '" aria-label="Edit ' + esc(it.label) + '">' + ICON.edit + "</button></div>" +
-                    (it.part || link ? '<div class="i-extra">' + (it.part ? "<span>Part # " + esc(it.part) + "</span>" : "") +
+                const extra = f => "<span>" + (f.key === "part" && f.name === "Part number" ? "Part # " : esc(f.name) + ": ") + esc(f.text) + "</span>";
+                return '<div class="item"><div class="i-main">' + head + "</div>" +
+                    '<div class="i-tools"><button type="button" class="icon-btn" data-edit-item="' + esc(it.id) + '" aria-label="Edit ' + esc(g.entryTitle(it)) + '">' + ICON.edit + "</button></div>" +
+                    (rest.length || link ? '<div class="i-extra">' + rest.map(extra).join("") +
                         (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(host || "Link") + "</a>" : "") + "</div>" : "") +
-                    (it.note ? '<div class="i-note">' + esc(it.note) + "</div>" : "") + "</div>";
+                    (nf ? '<div class="i-note">' + esc(nf.text) + "</div>" : "") + "</div>";
             };
             const info = groups.map(gr => '<div class="cat' + (gr.items.length ? "" : " empty-cat") + '"><div class="cat-head"><span class="cat-name">' + esc(gr.cat.name) + "</span>" +
                 (gr.cat.id ? '<button type="button" class="btn sm ghost" data-add-item="' + esc(gr.cat.id) + '">+ Add</button>' : "") + "</div>" +
-                (gr.items.length ? '<div class="items">' + gr.items.map(itemHtml).join("") + "</div>" : "") + "</div>").join("");
+                (gr.items.length ? '<div class="items">' + gr.items.map(it => itemHtml(it, gr.cat.id ? gr.cat : null)).join("") + "</div>" : "") + "</div>").join("");
 
             const svcHtml = svc.map(e => '<div class="item"><div class="i-main"><span class="i-value">' + esc(e.what) + '</span> <span class="i-label">· ' + esc(fmtKey(e.day)) + "</span></div>" +
                 '<div class="i-tools"><button type="button" class="icon-btn" data-edit-svc="' + esc(e.id) + '" aria-label="Edit ' + esc(e.what) + '">' + ICON.edit + "</button></div>" +
@@ -1311,7 +1362,7 @@
         }
 
         // Entry
-        let editItem = null; // { key, id, at } (id null for a new one)
+        let editItem = null; // { key, id, at, fields } (id null for a new one; fields: the ones the form shows)
         function openItem(key, id, catId) {
             const it = id ? ((stored[key] || {}).items || {})[id] : null;
             if (id && !it) return;
@@ -1320,13 +1371,31 @@
             $("imCat").innerHTML = cats.map(c => '<option value="' + esc(c.id) + '"' + (c.id === cat ? " selected" : "") + ">" + esc(c.name) + "</option>").join("") +
                 (it && !cats.some(c => c.id === it.cat) ? '<option value="' + esc(it.cat) + '" selected>Other</option>' : "");
             const catName = (cats.find(c => c.id === cat) || { name: "Other" }).name;
-            $("imTitle").textContent = it ? "Edit " + it.label : "Add to " + catName;
+            $("imTitle").textContent = it ? "Edit " + g.entryTitle(it) : "Add to " + catName;
             $("imSub").textContent = vName(key) + (it ? stampText(it) : "");
-            $("imLabel").value = it ? it.label : ""; $("imValue").value = it && it.value || ""; $("imPart").value = it && it.part || "";
-            $("imLink").value = it && it.link || ""; $("imNote").value = it && it.note || "";
+            itemFields(cat, it || {});
             $("imMsg").textContent = ""; $("imDelete").hidden = !it;
             openModal("itemModal");
         }
+        // The form's fields: the category's (in its order, with its names), plus any other the entry has something in
+        function itemFields(catId, it) {
+            const fs = g.entryFields(it, cats.find(c => c.id === catId) || null, g.fieldNames(cats));
+            editItem.fields = fs;
+            $("imFields").innerHTML = fs.map(f => {
+                const id = "imF_" + f.key, attrs = ' id="' + id + '" data-fkey="' + esc(f.key) + '" maxlength="' + f.max + '" placeholder="' + esc(f.placeholder || "") + '" autocomplete="off"';
+                return '<div class="field' + (f.wide ? " full" : "") + '"><label for="' + id + '">' + esc(f.name) + "</label>" +
+                    (f.long ? '<textarea class="textarea"' + attrs + ">" + esc(f.text) + "</textarea>"
+                        : '<input class="input"' + attrs + (f.link ? ' type="url" inputmode="url"' : ' type="text"') + ' value="' + esc(f.text) + '">') + "</div>";
+            }).join("");
+        }
+        // What's typed in the form, in the shape of an entry ({ label, value, ..., extra: { key: text } })
+        function itemTyped() {
+            const out = { extra: {} };
+            $("imFields").querySelectorAll("[data-fkey]").forEach(el => { if (g.isExtraKey(el.dataset.fkey)) out.extra[el.dataset.fkey] = el.value; else out[el.dataset.fkey] = el.value; });
+            return out;
+        }
+        // Another category: its fields, keeping what's typed
+        $("imCat").addEventListener("change", () => { if (editItem) itemFields($("imCat").value, itemTyped()); });
         // "· Added by justin 3 Oct · changed by desirae 18 Oct"
         function stampText(e) {
             const added = e.added !== undefined ? e.added : e.at, addedBy = e.addedBy !== undefined ? e.addedBy : e.by;
@@ -1334,10 +1403,10 @@
             return (typeof added === "number" ? " · Added" + (addedBy ? " by " + who(addedBy) : "") + " " + fmtKey(dayKey(added)) : "") +
                 (typeof e.at === "number" && e.at !== added ? " · changed" + (e.by ? " by " + who(e.by) : "") + " " + fmtKey(dayKey(e.at)) : "");
         }
-        const itemText = it => (cats.find(c => c.id === it.cat) || { name: "Other" }).name + ": " + it.label + (it.value ? " " + it.value : "");
+        const itemText = it => (cats.find(c => c.id === it.cat) || { name: "Other" }).name + ": " + g.entryTitle(it) + (it.label && it.value ? " " + it.value : "");
         $("itemForm").addEventListener("submit", async e => {
             e.preventDefault();
-            const c = g.cleanItem({ cat: $("imCat").value, label: $("imLabel").value, value: $("imValue").value, part: $("imPart").value, link: $("imLink").value, note: $("imNote").value });
+            const c = g.cleanItem(Object.assign(itemTyped(), { cat: $("imCat").value }), editItem.fields);
             if (!c.ok) { $("imMsg").textContent = c.error; return; }
             const { key, id } = editItem;
             const old = id ? ((stored[key] || {}).items || {})[id] : null;
@@ -1354,7 +1423,7 @@
             const { key, id } = editItem;
             const it = id ? ((stored[key] || {}).items || {})[id] : null;
             if (!it) return;
-            if (await ask({ title: "Delete " + it.label + "?", sub: "It goes to the Trash, where you can put it back for 30 days.", ok: "Delete", danger: true }) === null) return;
+            if (await ask({ title: "Delete " + g.entryTitle(it) + "?", sub: "It goes to the Trash, where you can put it back for 30 days.", ok: "Delete", danger: true }) === null) return;
             const u = { [G.vehicles + "/" + key + "/items/" + id]: null };
             trashWrite(u, "item", key, id, it);
             try { await write(u, { vkey: key, text: "Deleted " + itemText(it) }); closeModal("itemModal"); toast("Deleted. It's in the Trash for 30 days."); }
@@ -1578,6 +1647,7 @@
             for (const s of Object.values(stored)) for (const it of Object.values((s && s.items) || {})) if (it && it.cat) used[it.cat] = (used[it.cat] || 0) + 1;
             box.innerHTML = cats.map((c, i) => '<div class="cat-row" data-cat="' + esc(c.id) + '">' +
                 '<input class="input" value="' + esc(c.name) + '" maxlength="40" aria-label="Category name">' +
+                '<button type="button" class="btn sm ghost cat-fields" data-fields title="Fields: ' + esc(g.fieldsText(c.fields)) + '"><span>Fields: ' + esc(g.fieldsText(c.fields)) + "</span></button>" +
                 '<span class="count">' + (used[c.id] || 0) + "</span>" +
                 '<button type="button" class="icon-btn" data-move="-1" aria-label="Move up"' + (i ? "" : " disabled") + ">" + ICON.up + "</button>" +
                 '<button type="button" class="icon-btn" data-move="1" aria-label="Move down"' + (i < cats.length - 1 ? "" : " disabled") + ">" + ICON.down + "</button>" +
@@ -1604,6 +1674,7 @@
             if (!row) return;
             const i = cats.findIndex(c => c.id === row.dataset.cat);
             if (i < 0) return;
+            if (e.target.closest("[data-fields]")) { openCat(cats[i]); return; }
             const mv = e.target.closest("[data-move]");
             if (mv) {
                 const j = i + Number(mv.dataset.move);
@@ -1625,15 +1696,105 @@
                 catch (err) { toast("Couldn't delete: " + errMsg(err), true); }
             }
         });
-        $("catAdd").addEventListener("submit", async e => {
+        $("catAdd").addEventListener("submit", e => {
             e.preventDefault();
             const name = $("catName").value.trim().slice(0, g.MAX.catName);
-            if (!name) return;
             if (cats.some(c => c.name.toLowerCase() === name.toLowerCase())) { toast("There's already a category called " + name + ".", true); return; }
+            openCat(null, name);
+        });
+
+        // The category window: its name and its fields (check the ones it has, name each, add its own)
+        let editCat = null; // { id (null for a new one), rows: [{ key, name, on, extra, def }], start }
+        const FIELD_KIND = { link: "web link", note: "long text" };
+        function openCat(cat, name) {
+            const rows = (cat ? cat.fields : g.categoryFields(null)).map(f => ({ key: f.key, name: f.name, on: f.on, extra: f.extra, def: f.extra ? "" : g.BUILTIN_FIELDS.find(b => b.key === f.key).name }));
+            editCat = { id: cat ? cat.id : null, rows: rows };
+            editCat.start = JSON.stringify(g.cleanFields(rows).value);
+            $("cmTitle").textContent = cat ? cat.name : "Add a category";
+            $("cmSub").textContent = cat ? "Changes it on every vehicle." : "Every vehicle gets it.";
+            $("cmName").value = cat ? cat.name : name || "";
+            $("cmMsg").textContent = "";
+            renderCatFields();
+            openModal("catModal");
+        }
+        function renderCatFields() {
+            const n = editCat.rows.length;
+            $("cmFields").innerHTML = editCat.rows.map((f, i) => '<div class="fld-row' + (f.on ? "" : " off") + '" data-i="' + i + '">' +
+                '<input type="checkbox" data-on aria-label="Use this field"' + (f.on ? " checked" : "") + ">" +
+                '<input class="input" data-name maxlength="' + g.MAX.catName + '" value="' + esc(f.name) + '" placeholder="' + esc(f.def || "Field name, e.g. Model number") + '" autocomplete="off" aria-label="Field name">' +
+                '<span class="fld-kind">' + (f.extra ? "text" : FIELD_KIND[f.key] || "text") + "</span>" +
+                '<button type="button" class="icon-btn" data-fmove="-1" aria-label="Move up"' + (i ? "" : " disabled") + ">" + ICON.up + "</button>" +
+                '<button type="button" class="icon-btn" data-fmove="1" aria-label="Move down"' + (i < n - 1 ? "" : " disabled") + ">" + ICON.down + "</button>" +
+                '<button type="button" class="icon-btn" data-fdel aria-label="Remove this field"' + (f.extra ? "" : " hidden") + ">" + ICON.del + "</button></div>").join("");
+            $("cmAddField").disabled = n >= g.FIELDS_MAX;
+        }
+        $("cmFields").addEventListener("input", e => {
+            const row = e.target.closest("[data-i]");
+            if (row && e.target.matches("[data-name]")) editCat.rows[row.dataset.i].name = e.target.value;
+        });
+        $("cmFields").addEventListener("change", e => {
+            const row = e.target.closest("[data-i]");
+            if (!row || !e.target.matches("[data-on]")) return;
+            editCat.rows[row.dataset.i].on = e.target.checked;
+            row.classList.toggle("off", !e.target.checked);
+        });
+        $("cmFields").addEventListener("click", e => {
+            const row = e.target.closest("[data-i]");
+            if (!row) return;
+            const i = Number(row.dataset.i), rows = editCat.rows;
+            const mv = e.target.closest("[data-fmove]");
+            if (mv) {
+                const j = i + Number(mv.dataset.fmove);
+                if (j < 0 || j >= rows.length) return;
+                [rows[i], rows[j]] = [rows[j], rows[i]];
+                renderCatFields();
+                const b = $("cmFields").querySelector('[data-i="' + j + '"] [data-fmove="' + mv.dataset.fmove + '"]');
+                if (b && !b.disabled) b.focus();
+                return;
+            }
+            if (e.target.closest("[data-fdel]") && rows[i].extra) {
+                // A field with something saved in it is only unchecked, so nothing saved loses its name
+                let n = 0;
+                for (const s of Object.values(stored)) for (const it of Object.values((s && s.items) || {})) if (it && it.extra && it.extra[rows[i].key]) n++;
+                if (n) { toast(n + (n === 1 ? " entry has" : " entries have") + " something in this field, so it can't be removed. Uncheck it to hide it instead.", true); return; }
+                rows.splice(i, 1);
+                renderCatFields();
+            }
+        });
+        $("cmAddField").addEventListener("click", () => {
+            if (editCat.rows.length >= g.FIELDS_MAX) return;
+            editCat.rows.push({ key: "x" + push(ref(db, G.cats)).key, name: "", on: true, extra: true, def: "" });
+            renderCatFields();
+            $("cmFields").querySelector('[data-i="' + (editCat.rows.length - 1) + '"] [data-name]').focus();
+        });
+        $("catForm").addEventListener("submit", async e => {
+            e.preventDefault();
+            const msg = $("cmMsg");
+            const name = $("cmName").value.trim().slice(0, g.MAX.catName);
+            if (!name) { msg.textContent = "Give the category a name."; return; }
+            const id = editCat.id, old = id ? cats.find(c => c.id === id) : null;
+            if (id && !old) { msg.textContent = "Someone deleted this category. Close this and add it again."; return; }
+            if (cats.some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) { msg.textContent = "There's already a category called " + name + "."; return; }
+            const f = g.cleanFields(editCat.rows);
+            if (!f.ok) { msg.textContent = f.error; return; }
+            const list = g.fieldsText(g.categoryFields({ fields: f.value }));
+            const fieldsSame = JSON.stringify(f.value) === editCat.start;
+            if (old && name === old.name && fieldsSame) { closeModal("catModal"); return; }
+            const u = {}, hist = [];
+            if (!old) {
+                u[G.cats + "/" + push(ref(db, G.cats)).key] = { name: name, order: cats.length ? Math.max(...cats.map(c => c.order)) + 1 : 0, fields: f.value };
+                hist.push({ vkey: ALL, text: "Category " + name + " added, with " + list });
+            } else {
+                if (name !== old.name) { u[G.cats + "/" + id + "/name"] = name; hist.push({ vkey: ALL, text: "Category " + old.name + " renamed to " + name }); }
+                if (!fieldsSame) { u[G.cats + "/" + id + "/fields"] = f.value; hist.push({ vkey: ALL, text: "Category " + name + " fields: " + list }); }
+            }
+            $("cmSave").disabled = true;
             try {
-                await write({ [G.cats + "/" + push(ref(db, G.cats)).key]: { name: name, order: cats.length ? Math.max(...cats.map(c => c.order)) + 1 : 0 } }, { vkey: ALL, text: "Category " + name + " added" });
-                $("catName").value = ""; toast(name + " added to every vehicle.");
-            } catch (err) { toast("Couldn't add it: " + errMsg(err), true); }
+                await write(u, hist);
+                closeModal("catModal"); toast(old ? "Saved." : name + " added to every vehicle.");
+                if (!old) $("catName").value = "";
+            } catch (err) { msg.textContent = "Couldn't save: " + errMsg(err); }
+            $("cmSave").disabled = false;
         });
 
         fromHash();

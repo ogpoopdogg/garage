@@ -51,11 +51,28 @@ test('categories: a name is needed, 40 characters at most, nothing else saved', 
   await assertFails(db.ref('garage/categories/x').set({ name: 'Brakes', color: 'red' }));
 });
 
-test('entries: need a category and a name; only web links; limits on each field', async () => {
+test('category fields: built-in or own keys, each with a name; entries can have only the category\'s own fields', async () => {
+  const db = admin();
+  await assertSucceeds(db.ref('garage/categories/m').set({ name: 'Model', order: 1, fields: { label: { name: 'What', order: 0, off: true }, value: { name: 'Model number', order: 1 }, 'x-Nabc_1': { name: 'Colour', order: 2 } } }));
+  await assertFails(db.ref('garage/categories/m/fields/price').set({ name: 'Price', order: 3 }));
+  await assertFails(db.ref('garage/categories/m/fields/xA').set({ order: 3 }));
+  await assertFails(db.ref('garage/categories/m/fields/xA').set({ name: 'x'.repeat(41) }));
+  await assertFails(db.ref('garage/categories/m/fields/xA').set({ name: 'A', off: 'yes' }));
+  await assertFails(db.ref('garage/categories/m/fields/xA').set({ name: 'A', colour: 'red' }));
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i1').set({ cat: 'm', value: 'ABC-123' }));
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i2').set({ cat: 'm', extra: { 'x-Nabc_1': 'white' } }));
+  await assertFails(db.ref('garage/vehicles/12/items/i3').set({ cat: 'm' }));
+  await assertFails(db.ref('garage/vehicles/12/items/i3').set({ cat: 'm', extra: 'white' }));
+  await assertFails(db.ref('garage/vehicles/12/items/i3').set({ cat: 'm', extra: { price: '5' } }));
+  await assertFails(db.ref('garage/vehicles/12/items/i3').set({ cat: 'm', extra: { xA: 'x'.repeat(201) } }));
+});
+
+test('entries: need a category and something filled in; only web links; limits on each field', async () => {
   const db = admin();
   await assertSucceeds(db.ref('garage/vehicles/12/items/i1').set({ cat: 'lights', label: 'Headlight' }));
   await assertFails(db.ref('garage/vehicles/12/items/i2').set({ label: 'Headlight' }));
   await assertFails(db.ref('garage/vehicles/12/items/i2').set({ cat: 'lights', label: '' }));
+  await assertFails(db.ref('garage/vehicles/12/items/i2').set({ cat: 'lights' }));
   await assertFails(db.ref('garage/vehicles/12/items/i2').set(Object.assign({}, item, { link: 'javascript:alert(1)' })));
   await assertFails(db.ref('garage/vehicles/12/items/i2').set(Object.assign({}, item, { value: 'x'.repeat(201) })));
   await assertFails(db.ref('garage/vehicles/12/items/i2').set(Object.assign({}, item, { price: 5 })));
