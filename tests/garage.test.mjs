@@ -7,6 +7,7 @@ import {
   addMonths, daysBetween, currentKm, reminderState, reminderList, serviceDue, cleanReminder, nextReminder, cleanOdo,
   stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS
 } from '../garage-core.js';
+import { editKeys, editWas, editList, editDrops, withEdit, ITEM_KEYS, SERVICE_KEYS, PROBLEM_KEYS, EDITS_MAX } from '../garage-core.js';
 import { categoryFields, cleanFields, fieldsText, fieldNames, entryFields, entryTitle, hasContent } from '../garage-core.js';
 
 // The time clock's vanKey (timeclock/tc-core.js): "Van 12", "van12" and "12" are the same vehicle
@@ -164,6 +165,35 @@ test('editing keeps who added it; the last change is at/by', () => {
   assert.deepStrictEqual(stamps({ added: 1, addedBy: 'celeste@ec.com', at: 3, by: 'x' }, 'justin@ec.com', 5), { at: 5, by: 'justin@ec.com', added: 1, addedBy: 'celeste@ec.com' });
   // older entries only had at/by: that was when they were added
   assert.deepStrictEqual(stamps({ at: 2, by: 'desirae@ec.com' }, 'justin@ec.com', 5), { at: 5, by: 'justin@ec.com', added: 2, addedBy: 'desirae@ec.com' });
+});
+
+test('edit history: what each changed field said before, who edited it and when; the newest 20 are kept', () => {
+  const old = { cat: 'lights', label: 'Headlight', value: 'H11', note: 'both sides', extra: { xA: 'red' }, at: 1, by: 'celeste@ec.com' };
+  const next = { cat: 'lights', label: 'Headlight', value: 'H11B', part: '9008', extra: { xA: 'red', xB: 'LED' }, at: 2, by: 'justin@ec.com' };
+  const keys = editKeys(old, next, ['cat'].concat(ITEM_KEYS));
+  assert.deepStrictEqual(keys, ['cat', 'label', 'value', 'part', 'link', 'note', 'xA', 'xB']);
+  // empty before: "", and at/by/added aren't fields
+  assert.deepStrictEqual(editWas(old, next, keys), { value: 'H11', part: '', note: 'both sides', xB: '' });
+  assert.deepStrictEqual(editWas(old, Object.assign({}, old, { at: 9 }), keys), {});
+  assert.deepStrictEqual(editWas({ day: '2026-10-01', what: 'Oil', km: 180000 }, { day: '2026-10-01', what: 'Oil', km: 181000, cost: 90 }, SERVICE_KEYS), { km: 180000, cost: '' });
+  assert.deepStrictEqual(editWas({ text: 'Light out', status: 'open' }, { text: 'Left light out' }, PROBLEM_KEYS), { text: 'Light out' });
+
+  // newest first; one still being saved (a server time, not a number yet) is the newest; empty ones are left out
+  assert.deepStrictEqual(editList({ a: { at: 1, by: 'x', was: { note: 'a' } }, b: { at: { '.sv': 'timestamp' }, was: { note: 'b' } }, c: { at: 3, was: { note: 'c' } }, d: { at: 4, was: {} } }).map(e => e.id), ['b', 'c', 'a']);
+  assert.deepStrictEqual(editList(undefined), []);
+
+  // saved with the entry: old edits kept, the new one added; nothing changed keeps what it had
+  assert.deepStrictEqual(withEdit({ edits: { e1: { at: 1, by: 'x', was: { note: '' } } } }, { note: 'n' }, 'e2', 'justin@ec.com', 5),
+    { e1: { at: 1, by: 'x', was: { note: '' } }, e2: { at: 5, by: 'justin@ec.com', was: { note: 'n' } } });
+  assert.strictEqual(withEdit({}, {}, 'e1', 'j', 5), null);
+  assert.deepStrictEqual(withEdit({ edits: { e1: { at: 1, was: { note: '' } } } }, {}, 'e2', 'j', 5), { e1: { at: 1, was: { note: '' } } });
+  const many = {};
+  for (let i = 0; i < EDITS_MAX; i++) many['e' + String(i).padStart(2, '0')] = { at: i, was: { note: String(i) } };
+  assert.deepStrictEqual(editDrops(many), ['e00']);
+  const kept = withEdit({ edits: many }, { note: 'new' }, 'new', 'j', 100);
+  assert.strictEqual(Object.keys(kept).length, EDITS_MAX);
+  assert.ok(!kept.e00 && kept.e01 && kept.new);
+  assert.deepStrictEqual(editDrops({ a: { at: 1, was: { text: 'x' } } }), []);
 });
 
 test('trash: newest first, gone after 30 days, and put back where it was', () => {

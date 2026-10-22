@@ -125,6 +125,26 @@ test('km reading', async () => {
   await assertFails(db.ref('garage/vehicles/12/odo').set({ km: 5, where: 'dash' }));
 });
 
+test('edit history: on entries, service and reminders, and garage/problem_edits; only the fields each one has', async () => {
+  const db = admin();
+  const ed = { at: 5, by: 'justin@ec.com', was: { value: 'H11', part: '', xA: 'red' } };
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i1').set(Object.assign({}, item, { edits: { '-Nabc_1': ed } })));
+  await assertSucceeds(db.ref('garage/vehicles/12/service/s1').set({ day: '2026-10-01', what: 'Oil change', km: 181000, edits: { e1: { at: 5, by: 'justin@ec.com', was: { km: 180000, cost: '' } } } }));
+  await assertSucceeds(db.ref('garage/vehicles/12/reminders/r1').set({ what: 'Oil change', dueKm: 190000, edits: { e1: { at: 5, was: { dueKm: 188000, note: 'x' } } } }));
+  await assertSucceeds(db.ref('garage/problem_edits/-Nrep_1/e1').set({ at: 5, by: 'desirae@ec.com', was: { text: 'Light out' } }));
+  await assertSucceeds(db.ref('garage/problem_edits/-Nrep_1/e2').set({ at: 6, by: 'desirae@ec.com', was: { fixNote: '' } }));
+  // fields an entry doesn't have, no "was", nothing in it, too long, or something else saved
+  await assertFails(db.ref('garage/vehicles/12/items/i1/edits/e2').set({ at: 5, was: { km: 1 } }));
+  await assertFails(db.ref('garage/vehicles/12/service/s1/edits/e2').set({ at: 5, was: { label: 'x' } }));
+  await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { status: 'open' } }));
+  await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5 }));
+  await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { text: 'x'.repeat(1001) } }));
+  await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { text: 'x' }, why: 'typo' }));
+  await assertFails(db.ref('garage/problem_edits/bad id/e3').set({ at: 5, was: { text: 'x' } }));
+  await assertFails(as('matt@ec.com').ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { text: 'x' } }));
+  await assertFails(as('matt@ec.com').ref('garage/problem_edits').once('value'));
+});
+
 test('trash and the change history: admins only, and only what Garage saves', async () => {
   const db = admin();
   const t = { at: 1, by: 'justin@ec.com', kind: 'item', vkey: '12', vname: '12', id: 'i1', data: { cat: 'lights', label: 'Headlight' } };
