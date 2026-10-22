@@ -79,6 +79,26 @@
               "addedBy": {
                 ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
               },
+              "edits": {
+                "$e": {
+                  ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",
+                  "at": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "by": {
+                    ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                  },
+                  "was": {
+                    ".validate": "newData.hasChildren()",
+                    "$f": {
+                      ".validate": "$f.matches(/^(cat|label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                    }
+                  },
+                  "$other": {
+                    ".validate": false
+                  }
+                }
+              },
               "$other": {
                 ".validate": false
               }
@@ -113,6 +133,26 @@
               },
               "addedBy": {
                 ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+              },
+              "edits": {
+                "$e": {
+                  ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",
+                  "at": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "by": {
+                    ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                  },
+                  "was": {
+                    ".validate": "newData.hasChildren()",
+                    "$f": {
+                      ".validate": "$f.matches(/^(day|what|km|cost|note)$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                    }
+                  },
+                  "$other": {
+                    ".validate": false
+                  }
+                }
               },
               "$other": {
                 ".validate": false
@@ -157,6 +197,26 @@
               },
               "by": {
                 ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+              },
+              "edits": {
+                "$e": {
+                  ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",
+                  "at": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "by": {
+                    ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                  },
+                  "was": {
+                    ".validate": "newData.hasChildren()",
+                    "$f": {
+                      ".validate": "$f.matches(/^(what|dueKm|dueDay|everyKm|everyMonths|note)$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                    }
+                  },
+                  "$other": {
+                    ".validate": false
+                  }
+                }
               },
               "$other": {
                 ".validate": false
@@ -228,6 +288,29 @@
             },
             "text": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "problem_edits": {
+        "$rid": {
+          ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/)",
+          "$e": {
+            ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "by": {
+              ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+            },
+            "was": {
+              ".validate": "newData.hasChildren()",
+              "$f": {
+                ".validate": "$f.matches(/^(text|fixNote)$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+              }
             },
             "$other": {
               ".validate": false

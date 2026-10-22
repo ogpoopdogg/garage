@@ -27,6 +27,10 @@ One page for everything we know about each vehicle:
   all vehicles; a missed one waits for **Got it**. Drivers on the clock who haven't checked yet show too.
 - **Oil check schedule:** how often drivers are asked to check each vehicle's oil (moved here
   from the time clock admin panel), on the **Oil schedule** tab or on each vehicle.
+- **Edit history:** a problem (what's wrong, and what was done to fix it), an info entry, a service log
+  entry and a reminder can all be edited. An edited one says *Edited by desirae · 22 Oct*, and **Show what
+  it said before** lists each earlier version: the fields that changed, what they said, who changed them
+  and when (the newest 20 edits of each).
 - **Service log:** oil changes, brakes, tires and other work, with the date, km and cost.
 - **Service due:** reminders such as "oil change at 190,000 km or in 6 months", with a *Due soon*
   tag 1,000 km or 14 days ahead and *Overdue* after. **Done** logs the service and moves a
@@ -70,15 +74,17 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 | --- | --- | --- |
 | `garage/categories/{id}` | `{ name, order, fields }`; `fields/{key}`: `{ name, order, off }`, key `label`, `value`, `part`, `link`, `note` or `x…` (its own); no `fields`: all five built-in ones | Garage |
 | `garage/vehicles/{key}` | `{ name, listed, removed }`: `listed` added in Garage, `removed` removed in Garage | Garage |
-| `garage/vehicles/{key}/items/{id}` | `{ cat, label, value, part, link, note, extra, added, addedBy, at, by }`; `extra/{key}`: the category's own fields; at least one field filled in | Garage |
-| `garage/vehicles/{key}/service/{id}` | `{ day, what, km, cost, note, added, addedBy, at, by }` | Garage |
-| `garage/vehicles/{key}/reminders/{id}` | `{ what, dueKm, dueDay, everyKm, everyMonths, note, added, addedBy, at, by }` | Garage |
+| `garage/vehicles/{key}/items/{id}` | `{ cat, label, value, part, link, note, extra, added, addedBy, at, by }`; `extra/{key}`: the category's own fields; at least one field filled in; `edits` below | Garage |
+| `garage/vehicles/{key}/service/{id}` | `{ day, what, km, cost, note, added, addedBy, at, by, edits }` | Garage |
+| `garage/vehicles/{key}/reminders/{id}` | `{ what, dueKm, dueDay, everyKm, everyMonths, note, added, addedBy, at, by, edits }` | Garage |
+| `…/{id}/edits/{editId}` | `{ at, by, was: { field: what it said before } }` for each edit of an entry, service or reminder (`""` when the field was empty); the newest 20 | Garage |
 | `garage/vehicles/{key}/odo` | `{ km, day, at, by }`: the last km entered | Garage |
 | `garage/trash/{id}` | `{ at, by, kind, vkey, vname, id, data }`, deleted after 30 days | Garage |
+| `garage/problem_edits/{reportId}/{editId}` | `{ at, by, was: { text, fixNote } }`: each edit of a problem in `timeclock/van_reports`; the newest 20 | Garage |
 | `garage/history/{key}/{id}` | `{ at, by, text }` (`_all`: changes for every vehicle) | Garage |
 | `timeclock/vans` | The time clock's vans without GPS (Garage's vehicle list) | Admin panel |
 | `developer/dispatch_dashboard/drivers` | The RouteWatcher vehicles (GPS), read only (Garage's vehicle list) | RouteWatcher |
-| `timeclock/van_reports` | Vehicle Check reports | Drivers and Garage; Garage marks them fixed or reopens them |
+| `timeclock/van_reports` | Vehicle Check reports | Drivers and Garage; Garage marks them fixed, reopens them and edits `text` and `fixNote` |
 | `timeclock/shifts/{ek}/{id}/oil` | The oil check on each shift | Drivers; Garage marks a missed one as seen |
 | `timeclock/oil_plan`, `timeclock/oil_last` | The oil check schedule and each vehicle's last check | Garage (schedule), drivers (last check) |
 

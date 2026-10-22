@@ -367,6 +367,54 @@ export function stamps(old, who, ts) {
     return out;
 }
 
+// ---------- Edit history ----------
+// Each edit to an entry or a problem keeps { at, by, was }: who edited it, when, and what each changed field said
+// before ("" when it was empty). The newest EDITS_MAX are kept.
+export const EDITS_MAX = 20;
+export const ITEM_KEYS = ["label", "value", "part", "link", "note"];
+export const SERVICE_KEYS = ["day", "what", "km", "cost", "note"];
+export const REMINDER_KEYS = ["what", "dueKm", "dueDay", "everyKm", "everyMonths", "note"];
+export const PROBLEM_KEYS = ["text", "fixNote"];
+const fieldOf = (e, k) => {
+    const v = e ? (isExtraKey(k) ? (e.extra || {})[k] : e[k]) : undefined;
+    return v === undefined || v === null ? "" : v;
+};
+// An entry's keys to compare: the given ones plus any own field (x…) either version has
+export function editKeys(old, next, keys) {
+    const out = keys.slice();
+    for (const e of [old, next]) for (const k of Object.keys((e && e.extra) || {})) if (isExtraKey(k) && !out.includes(k)) out.push(k);
+    return out;
+}
+// { field: what it was } for each field that's different now; {} when nothing changed
+export function editWas(old, next, keys) {
+    const was = {};
+    for (const k of keys) {
+        const a = fieldOf(old, k), b = fieldOf(next, k);
+        if (a !== b) was[k] = a;
+    }
+    return was;
+}
+// Newest first: [{ id, at, by, was }]. An edit still being saved (no number yet) counts as the newest.
+export function editList(edits) {
+    const t = e => typeof e.at === "number" ? e.at : Infinity;
+    return Object.entries(edits || {}).filter(([, e]) => e && e.was && typeof e.was === "object" && Object.keys(e.was).length)
+        .map(([id, e]) => ({ id: id, at: e.at, by: e.by || "", was: e.was })).sort((a, b) => t(b) - t(a));
+}
+// The ids of the oldest edits to delete so there's room for one more
+export function editDrops(edits, max) {
+    const list = editList(edits);
+    return list.length < (max || EDITS_MAX) ? [] : list.slice((max || EDITS_MAX) - 1).map(e => e.id);
+}
+// The edits to save with an edited entry: the old ones (minus the oldest past EDITS_MAX) and the new one.
+// null when nothing changed, so the entry keeps what it had.
+export function withEdit(old, was, id, who, ts) {
+    const kept = Object.assign({}, (old && old.edits) || {});
+    if (!Object.keys(was).length) return Object.keys(kept).length ? kept : null;
+    for (const d of editDrops(kept)) delete kept[d];
+    kept[id] = { at: ts, by: who, was: was };
+    return kept;
+}
+
 // ---------- Trash ----------
 // Newest first: [{ tid, at, by, kind, vkey, vname, id, data }] (tid: its id in the trash, id: its id before)
 export function trashList(trash) {

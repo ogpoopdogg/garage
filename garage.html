@@ -240,6 +240,13 @@
         .entry .e-reply { margin-top: 6px; color: var(--muted); font-size: 0.85rem; font-style: italic; }
         .entry .e-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
         .entry .e-vehicle { color: var(--yellow); background: none; border: 0; cursor: pointer; font: inherit; font-weight: 600; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+        /* "Edited by desirae · 22 Oct" on an entry, and what it said before each edit */
+        .edited { grid-column: 1 / -1; margin-top: 4px; font-size: 0.8rem; color: var(--dim); }
+        .edited button { background: none; border: 0; padding: 0; margin-left: 4px; font: inherit; color: var(--blue); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+        .versions { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--line); font-size: 0.85rem; }
+        .versions .v-when { color: var(--dim); font-size: 0.78rem; }
+        .versions .v-field { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+        .versions .v-field b { font-weight: 600; color: var(--text); }
         .hist-line { display: flex; justify-content: space-between; gap: 4px 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
         .hist-line:first-child { border-top: 0; }
         .hist-line .muted { font-size: 0.8rem; }
@@ -616,7 +623,7 @@
         const { ref, onValue, get, update, push, query, orderByChild, startAt, limitToLast, serverTimestamp } = fd;
 
         const $ = id => document.getElementById(id);
-        const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history" };
+        const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history", problemEdits: "garage/problem_edits" };
         // Garage lists the vehicles in RouteWatcher (GPS), the time clock's vans (Admin → Vehicles → Vehicles without GPS)
         // and the ones added here. Everything is still kept by the vehicle's name, never by a GPS unit.
         // false would leave the RouteWatcher vehicles out.
@@ -628,7 +635,7 @@
 
         // ---------- State ----------
         let user = null, serverOffset = 0, unsubs = [], shiftUnsubs = {}, histUnsub = null, histKey = null;
-        let cats = [], catsRaw = null, stored = {}, reports = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {}, trash = {}, history = [];
+        let cats = [], catsRaw = null, stored = {}, reports = {}, problemEdits = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {}, trash = {}, history = [];
         let gpsRaw = null, vansRaw = {}, vehicles = [];
         let loaded = {}, loadErr = null, savedCopyAt = 0, connected = false, everConnected = false, signedInAt = 0;
         let oilDays = OIL_DAYS, filter = "all", histAll = false, purged = false;
@@ -743,7 +750,7 @@
             if (histUnsub) histUnsub(); histUnsub = null; histKey = null;
         }
         function clearData() {
-            cats = []; catsRaw = null; stored = {}; reports = {}; oilPlans = {}; oilLast = {}; employees = {}; shiftsByEk = {}; trash = {}; history = [];
+            cats = []; catsRaw = null; stored = {}; reports = {}; problemEdits = {}; oilPlans = {}; oilLast = {}; employees = {}; shiftsByEk = {}; trash = {}; history = [];
             gpsRaw = null; vansRaw = {}; vehicles = []; loaded = {}; loadErr = null; savedCopyAt = 0;
         }
 
@@ -790,6 +797,7 @@
             sub("garage", ref(db, G.vehicles), s => { stored = s.val() || {}; syncVehicles(); });
             sub("vans", ref(db, P.vans), s => { vansRaw = s.val() || {}; syncVehicles(); });
             sub("reports", ref(db, P.vanReports), s => { reports = s.val() || {}; });
+            sub("problemEdits", ref(db, G.problemEdits), s => { problemEdits = s.val() || {}; });
             sub("oilPlan", ref(db, P.oilPlan), s => { oilPlans = s.val() || {}; });
             sub("oilLast", ref(db, P.oilLast), s => { oilLast = s.val() || {}; });
             sub("employees", ref(db, P.employees), s => { employees = s.val() || {}; syncShiftListeners(); });
@@ -844,6 +852,47 @@
         }
         document.addEventListener("click", e => { if (e.target.closest("[data-hist-all]")) { histAll = true; render(); } });
 
+        // ---------- Edit history on each entry ----------
+        // "Edited by desirae · 22 Oct, 3:10 pm  Show what it said before", and under it each earlier version
+        const openEdits = new Set(); // the entries showing their earlier versions ("item:12:-Nabc", "p:-Nxyz")
+        const who = b => String(b || "").split("@")[0];
+        const months = n => n + (n === 1 ? " month" : " months");
+        // A field's name and how its old value reads, for each kind of entry
+        function wasText(kind, k, v, it) {
+            const show = { day: fmtKey, dueDay: fmtKey, km: g.fmtKm, dueKm: g.fmtKm, everyKm: g.fmtKm, cost: g.fmtMoney, everyMonths: months };
+            const text = v === "" ? "" : typeof v === "number" || k in show ? (show[k] ? show[k](v) : String(v)) : String(v);
+            let name = k;
+            if (kind === "item") {
+                if (k === "cat") return ["Category", (cats.find(c => c.id === v) || { name: v ? "Other" : "" }).name];
+                const f = g.entryFields(it || {}, cats.find(c => c.id === (it && it.cat)) || null, g.fieldNames(cats)).find(x => x.key === k);
+                name = f ? f.name : (g.BUILTIN_FIELDS.find(x => x.key === k) || { name: "Other field" }).name;
+            } else name = ({ day: "Date", what: "What", km: "Km", cost: "Cost", note: "Note", dueKm: "Due at", dueDay: "Due on", everyKm: "Repeats every", everyMonths: "Repeats every",
+                text: "What's wrong", fixNote: "What was done" })[k] || k;
+            return [name, text];
+        }
+        function editsHtml(kind, id, edits, it) {
+            const list = g.editList(edits);
+            if (!list.length) return "";
+            const open = openEdits.has(id), last = list[0];
+            // the fields in the order the entry shows them
+            const order = kind === "item" ? ["cat"].concat(g.entryFields(it || {}, cats.find(c => c.id === (it && it.cat)) || null, g.fieldNames(cats)).map(f => f.key))
+                : { service: g.SERVICE_KEYS, reminder: g.REMINDER_KEYS, problem: g.PROBLEM_KEYS }[kind] || [];
+            const pos = k => order.includes(k) ? order.indexOf(k) : order.length;
+            return '<div class="edited">Edited' + (last.by ? " by " + esc(who(last.by)) : "") + (typeof last.at === "number" ? " · " + esc(ago(last.at)) : "") +
+                (list.length > 1 ? " · " + list.length + " edits" : "") +
+                '<button type="button" data-edits="' + esc(id) + '" aria-expanded="' + open + '">' + (open ? "Hide earlier versions" : "Show what it said before") + "</button></div>" +
+                (open ? '<div class="versions">' + list.map(ed => '<div><div class="v-when">Before ' + (ed.by ? esc(who(ed.by)) + "'s" : "the") + " edit" + (typeof ed.at === "number" ? ", " + esc(ago(ed.at)) : "") + "</div>" +
+                    Object.entries(ed.was).sort((a, b) => pos(a[0]) - pos(b[0])).map(([k, v]) => { const [n, t] = wasText(kind, k, v, it); return '<div class="v-field"><b>' + esc(n) + ":</b> " + (t ? esc(t) : '<span class="muted">(empty)</span>') + "</div>"; }).join("") +
+                    "</div>").join("") + "</div>" : "");
+        }
+        document.addEventListener("click", e => {
+            const b = e.target.closest("[data-edits]");
+            if (!b) return;
+            const id = b.dataset.edits;
+            if (openEdits.has(id)) openEdits.delete(id); else openEdits.add(id);
+            render();
+        });
+
         // ---------- A saved copy for opening with no signal ----------
         // Kept in this browser only, and only for the admin who saw it; signing out deletes it.
         let copyTimer = null;
@@ -855,7 +904,7 @@
                 const names = {};
                 for (const [k, e] of Object.entries(employees)) if (e) names[k] = { name: displayName(e, e.email) };
                 try {
-                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, oilPlans, oilLast, vansRaw, gpsRaw, trash, employees: names }));
+                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, problemEdits, oilPlans, oilLast, vansRaw, gpsRaw, trash, employees: names }));
                 } catch (e) { /* full or blocked: just no saved copy */ }
             }, 3000);
         }
@@ -863,7 +912,7 @@
             let c = null;
             try { c = JSON.parse(localStorage.getItem(SNAP) || "null"); } catch (e) { c = null; }
             if (!c || c.email !== email || typeof c.at !== "number") return;
-            catsRaw = c.catsRaw; cats = g.sortCategories(catsRaw); stored = c.stored || {}; reports = c.reports || {}; oilPlans = c.oilPlans || {};
+            catsRaw = c.catsRaw; cats = g.sortCategories(catsRaw); stored = c.stored || {}; reports = c.reports || {}; problemEdits = c.problemEdits || {}; oilPlans = c.oilPlans || {};
             oilLast = c.oilLast || {}; vansRaw = c.vansRaw || {}; gpsRaw = c.gpsRaw || null; trash = c.trash || {}; employees = c.employees || {};
             savedCopyAt = c.at;
             syncVehicles();
@@ -956,7 +1005,7 @@
                 "Changes can't be saved until you're back online.";
             // A failed load (usually permission denied, or the rules not published yet) shows with a Try again button
             $("loadError").hidden = !loadErr;
-            if (loadErr) $("loadErrorText").textContent = "Couldn't load " + ({ cats: "the categories", garage: "the garage", vans: "the van list", reports: "the vehicle problems", oilPlan: "the oil check schedule", oilLast: "the last oil checks", employees: "the employees", trash: "the trash" }[loadErr.name] || loadErr.name) + ": " +
+            if (loadErr) $("loadErrorText").textContent = "Couldn't load " + ({ cats: "the categories", garage: "the garage", vans: "the van list", reports: "the vehicle problems", problemEdits: "the earlier versions of the problems", oilPlan: "the oil check schedule", oilLast: "the last oil checks", employees: "the employees", trash: "the trash" }[loadErr.name] || loadErr.name) + ": " +
                 (/permission/i.test(String(loadErr.err && (loadErr.err.code + " " + loadErr.err.message))) ? "the database said no (permission denied). Check that the newest database rules are published in the Firebase console." : errMsg(loadErr.err));
         }
         const loadingHtml = () => '<div class="boot" style="min-height:30vh"><div><div class="spinner"></div>Loading…</div></div>';
@@ -1068,9 +1117,12 @@
                 (withVehicle ? "Vehicle " + vehicleLink(r.vkey, r.vehicleName || r.vehicleId) : esc(who)) + '</span><span class="e-when">' + esc(ago(r.at)) + "</span></div>" +
                 (withVehicle ? '<div class="e-detail">Reported by ' + esc(who) + "</div>" : "") +
                 '<div class="e-note">' + esc(r.text) + "</div>" +
-                (done ? '<div class="e-reply">Fixed' + (r.fixNote ? ": " + esc(r.fixNote) : "") + (r.by ? " · " + esc(r.by) : "") + (r.doneAt ? " · " + esc(ago(r.doneAt)) : "") + "</div>" +
-                        '<div class="e-actions"><button type="button" class="btn sm ghost" data-vanreopen="' + esc(r.id) + '">Reopen</button></div>'
-                    : '<div class="e-actions"><button type="button" class="btn sm primary" data-vanfixed="' + esc(r.id) + '">Mark fixed</button></div>') + "</div>";
+                (done ? '<div class="e-reply">Fixed' + (r.fixNote ? ": " + esc(r.fixNote) : "") + (r.by ? " · " + esc(r.by) : "") + (r.doneAt ? " · " + esc(ago(r.doneAt)) : "") + "</div>" : "") +
+                editsHtml("problem", "p:" + r.id, problemEdits[r.id]) +
+                '<div class="e-actions">' + (done ? '<button type="button" class="btn sm ghost" data-vanreopen="' + esc(r.id) + '">Reopen</button>'
+                    : '<button type="button" class="btn sm primary" data-vanfixed="' + esc(r.id) + '">Mark fixed</button>') +
+                '<button type="button" class="btn sm ghost" data-vanedit="' + esc(r.id) + '">Edit</button>' +
+                (done ? '<button type="button" class="btn sm ghost" data-vanedit-fix="' + esc(r.id) + '">' + (r.fixNote ? "Edit what was done" : "Add what was done") + "</button>" : "") + "</div></div>";
         }
         function oilHtml(o, withVehicle) {
             const s = o.s;
@@ -1120,6 +1172,8 @@
                 } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
                 return;
             }
+            const ve = e.target.closest("[data-vanedit], [data-vanedit-fix]");
+            if (ve) { editProblem(ve.dataset.vanedit || ve.dataset.vaneditFix, ve.hasAttribute("data-vanedit-fix") ? "fixNote" : "text"); return; }
             const vr = e.target.closest("[data-vanreopen]");
             if (vr) {
                 const id = vr.dataset.vanreopen, r = reports[id];
@@ -1133,6 +1187,28 @@
                 vr.disabled = false;
             }
         });
+        // Editing what a driver (or an admin) wrote, or the fix note: the old text is kept in garage/problem_edits
+        async function editProblem(id, field) {
+            const r = reports[id];
+            if (!r) return;
+            const fix = field === "fixNote";
+            const text = await ask({ title: fix ? "What was done" : "Edit the problem", sub: "Vehicle " + (r.vehicleName || r.vehicleId) + " · " + (fix ? short(r.text, 140) : "Reported by " + (r.name || empName(r.ek)) + ", " + ago(r.at)) + ". What it said before stays on it.",
+                label: fix ? "What was done" : "What's wrong", value: (fix ? r.fixNote : r.text) || "", multiline: true, max: fix ? g.MAX.fixNote : g.MAX.problem, ok: "Save",
+                check: t => fix ? "" : (c => c.ok ? "" : c.error)(g.cleanProblem({ text: t })) });
+            if (text === null) return;
+            const cur = reports[id];
+            if (!cur) { toast("That problem was deleted, so nothing was saved.", true); return; }
+            const val = fix ? text.trim().slice(0, g.MAX.fixNote) : g.cleanProblem({ text: text }).value.text;
+            const was = g.editWas(cur, { [field]: val, [fix ? "text" : "fixNote"]: cur[fix ? "text" : "fixNote"] }, g.PROBLEM_KEYS);
+            if (!Object.keys(was).length) return;
+            const base = G.problemEdits + "/" + id;
+            const u = { [P.vanReports + "/" + id + "/" + field]: val || null, [base + "/" + push(ref(db, base)).key]: { at: serverTimestamp(), by: by(), was: was } };
+            for (const d of g.editDrops(problemEdits[id])) u[base + "/" + d] = null;
+            try {
+                await write(u, { vkey: vanKey(cur.vehicleName || ""), text: (fix ? "Fix note edited: " : "Problem edited: ") + short(val, 80) + " (was: " + short(was[field] || "empty", 80) + ")" });
+                toast("Saved. What it said before is kept on it.");
+            } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
+        }
         async function addProblem(key) {
             const v = vehicleByKey(key);
             if (!v) return;
@@ -1242,7 +1318,7 @@
                 (st.state === "overdue" ? '<span class="tag warn">Overdue</span>' : st.state === "soon" ? '<span class="tag soon">Due soon</span>' : "") + "</div>" +
                 '<div class="i-tools"><button type="button" class="btn sm" data-rem-done="' + esc(r.id) + '">Done</button><button type="button" class="icon-btn" data-edit-rem="' + esc(r.id) + '" aria-label="Edit ' + esc(r.what) + '">' + ICON.edit + "</button></div>" +
                 '<div class="i-extra">' + bits.map(b => "<span>" + esc(b) + "</span>").join("") + (every ? "<span>Repeats " + esc(every) + "</span>" : "") + "</div>" +
-                (r.note ? '<div class="i-note">' + esc(r.note) + "</div>" : "") + "</div>";
+                (r.note ? '<div class="i-note">' + esc(r.note) + "</div>" : "") + editsHtml("reminder", "r:" + r.id, r.edits) + "</div>";
         }
         function kmText(s) {
             const km = g.currentKm(s);
@@ -1293,7 +1369,7 @@
                     '<div class="i-tools"><button type="button" class="icon-btn" data-edit-item="' + esc(it.id) + '" aria-label="Edit ' + esc(g.entryTitle(it)) + '">' + ICON.edit + "</button></div>" +
                     (rest.length || link ? '<div class="i-extra">' + rest.map(extra).join("") +
                         (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(host || "Link") + "</a>" : "") + "</div>" : "") +
-                    (nf ? '<div class="i-note">' + esc(nf.text) + "</div>" : "") + "</div>";
+                    (nf ? '<div class="i-note">' + esc(nf.text) + "</div>" : "") + editsHtml("item", "i:" + it.id, it.edits, it) + "</div>";
             };
             const info = groups.map(gr => '<div class="cat' + (gr.items.length ? "" : " empty-cat") + '"><div class="cat-head"><span class="cat-name">' + esc(gr.cat.name) + "</span>" +
                 (gr.cat.id ? '<button type="button" class="btn sm ghost" data-add-item="' + esc(gr.cat.id) + '">+ Add</button>' : "") + "</div>" +
@@ -1303,7 +1379,7 @@
                 '<div class="i-tools"><button type="button" class="icon-btn" data-edit-svc="' + esc(e.id) + '" aria-label="Edit ' + esc(e.what) + '">' + ICON.edit + "</button></div>" +
                 (typeof e.km === "number" || typeof e.cost === "number" ? '<div class="i-extra">' + (typeof e.km === "number" ? "<span>" + esc(g.fmtKm(e.km)) + "</span>" : "") +
                     (typeof e.cost === "number" ? "<span>" + esc(g.fmtMoney(e.cost)) + "</span>" : "") + "</div>" : "") +
-                (e.note ? '<div class="i-note">' + esc(e.note) + "</div>" : "") + "</div>").join("");
+                (e.note ? '<div class="i-note">' + esc(e.note) + "</div>" : "") + editsHtml("service", "s:" + e.id, e.edits) + "</div>").join("");
 
             const oilCard = '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
                 (v.inClock ? '<div class="oil-rows">' + oilRow(v, def) + "</div>"
@@ -1350,6 +1426,14 @@
 
         // Writes the vehicle's name along with an entry, so a vehicle that leaves the van list still shows by name
         const withName = (key, u) => Object.assign(u, { [G.vehicles + "/" + key + "/name"]: vName(key).slice(0, 60) });
+        // An edited entry keeps its earlier versions in edits/{id}: the fields that changed and what they said before,
+        // with who changed them and when (the newest 20 edits)
+        function keepEdits(path, old, value, keys) {
+            if (!old) return value;
+            const ed = g.withEdit(old, g.editWas(old, value, g.editKeys(old, value, keys)), push(ref(db, path + "/edits")).key, by(), serverTimestamp());
+            if (ed) value.edits = ed;
+            return value;
+        }
         // Someone else saved (or deleted) the same thing while this window was open: say so once, and save on the
         // second press. Returns true when it's fine to save.
         function fresh(state, current, msgEl) {
@@ -1414,7 +1498,7 @@
             const path = G.vehicles + "/" + key + "/items/" + (id || push(ref(db, G.vehicles + "/" + key + "/items")).key);
             $("imSave").disabled = true;
             try {
-                await write(withName(key, { [path]: Object.assign(c.value, g.stamps(old, by(), serverTimestamp())) }), { vkey: key, text: (old ? "Changed " : "Added ") + itemText(c.value) });
+                await write(withName(key, { [path]: keepEdits(path, old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())), ["cat"].concat(g.ITEM_KEYS)) }), { vkey: key, text: (old ? "Changed " : "Added ") + itemText(c.value) });
                 closeModal("itemModal"); toast("Saved.");
             } catch (err) { $("imMsg").textContent = "Couldn't save: " + errMsg(err); }
             $("imSave").disabled = false;
@@ -1457,7 +1541,7 @@
             const old = id ? (s.service || {})[id] : null;
             if (!fresh(editSvc, old, $("smMsg"))) return;
             const path = G.vehicles + "/" + key + "/service/" + (id || push(ref(db, G.vehicles + "/" + key + "/service")).key);
-            const u = withName(key, { [path]: Object.assign(c.value, g.stamps(old, by(), serverTimestamp())) });
+            const u = withName(key, { [path]: keepEdits(path, old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())), g.SERVICE_KEYS) });
             const hist = [{ vkey: key, text: (old ? "Changed service: " : "Logged service: ") + c.value.what + ", " + fmtKey(c.value.day) + (typeof c.value.km === "number" ? ", " + g.fmtKm(c.value.km) : "") }];
             if (rem) {
                 const cur = (s.reminders || {})[rem.id];
@@ -1519,7 +1603,7 @@
             const path = G.vehicles + "/" + key + "/reminders/" + (id || push(ref(db, G.vehicles + "/" + key + "/reminders")).key);
             $("rmSave").disabled = true;
             try {
-                await write(withName(key, { [path]: Object.assign(c.value, g.stamps(old, by(), serverTimestamp())) }), { vkey: key, text: (old ? "Changed reminder: " : "Added reminder: ") + c.value.what });
+                await write(withName(key, { [path]: keepEdits(path, old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())), g.REMINDER_KEYS) }), { vkey: key, text: (old ? "Changed reminder: " : "Added reminder: ") + c.value.what });
                 closeModal("remModal"); toast("Saved.");
             } catch (err) { $("rmMsg").textContent = "Couldn't save: " + errMsg(err); }
             $("rmSave").disabled = false;
