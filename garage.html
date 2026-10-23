@@ -582,6 +582,7 @@
         const noReport = () => {};
         const reportFailedSignIn = typeof core.reportFailedSignIn === "function" ? core.reportFailedSignIn : noReport;
         const reportRefusedSignIn = typeof core.reportRefusedSignIn === "function" ? core.reportRefusedSignIn : noReport;
+        const reportSignedIn = typeof core.reportSignedIn === "function" ? core.reportSignedIn : noReport;
         const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = fa;
         const { ref, onValue, get, update, push, query, orderByChild, startAt, limitToLast, serverTimestamp } = fd;
 
@@ -717,6 +718,7 @@
         }
 
         onAuthStateChanged(auth, u => {
+            if (u) reportSignedIn(u, "garage");
             stopAll();
             clearData();
             user = u;
