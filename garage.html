@@ -215,6 +215,8 @@
         .cat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .cat-name { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: 0.03em; }
         .cat.empty-cat .cat-name { color: var(--dim); }
+        .cat.empty-cat { padding: 6px 0; }
+        .cat:not(.empty-cat) + .cat.empty-cat { margin-top: 6px; border-top-width: 2px; }
         .items { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
         .item {
             display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: start;
@@ -1728,7 +1730,8 @@
                         (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(host || "Link") + "</a>" : "") + "</div>" : "") +
                     (nf ? '<div class="i-note">' + esc(nf.text) + "</div>" : "") + editsHtml("item", "i:" + it.id, it.edits, it) + "</div>";
             };
-            const info = groups.map(gr => '<div class="cat' + (gr.items.length ? "" : " empty-cat") + '"><div class="cat-head"><span class="cat-name">' + esc(gr.cat.name) + "</span>" +
+            // Categories with something saved first (in their order, one after another), then the empty ones under them
+            const info = groups.filter(gr => gr.items.length).concat(groups.filter(gr => !gr.items.length)).map(gr => '<div class="cat' + (gr.items.length ? "" : " empty-cat") + '"><div class="cat-head"><span class="cat-name">' + esc(gr.cat.name) + "</span>" +
                 (gr.cat.id ? '<button type="button" class="btn sm ghost" data-add-item="' + esc(gr.cat.id) + '">+ Add</button>' : "") + "</div>" +
                 (gr.items.length ? '<div class="items">' + gr.items.map(it => itemHtml(it, gr.cat.id ? gr.cat : null)).join("") + "</div>" : "") + "</div>").join("");
 
