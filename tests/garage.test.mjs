@@ -295,3 +295,75 @@ test('calendar: weeks start on Monday; first tap starts, second ends, an earlier
   assert.deepStrictEqual(rangePick(r, '2026-09-01'), { from: '2026-09-01', to: '2026-10-10' });
   assert.deepStrictEqual(rangePick({ from: '2026-10-10', to: '2026-10-20' }, '2026-10-15'), { from: '2026-10-15', to: '' });
 });
+
+import { VEHICLE_CAT_ID, VEHICLE_CAT_FIELDS, vehicleCat, vehicleSummary, isPlate, aiParts, aiText, AI_TARGETS } from '../garage-core.js';
+
+test('Ask AI: the Vehicle category has year, make, model, trim and engine as its own fields, which the rules take', () => {
+  const f = categoryFields({ fields: VEHICLE_CAT_FIELDS });
+  assert.deepStrictEqual(f.filter(x => x.on).map(x => x.name), ['Year', 'Make', 'Model', 'Trim', 'Engine', 'Note']);
+  assert.ok(f.filter(x => x.on && x.key !== 'note').every(x => x.extra));
+  assert.ok(Object.keys(VEHICLE_CAT_FIELDS).every(k => /^(label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/.test(k)));
+  assert.ok(cleanFields(f.map(x => ({ key: x.key, name: x.name, on: x.on }))).ok);
+  // an entry with only the year filled in is fine (the What field is off)
+  assert.ok(cleanItem({ cat: VEHICLE_CAT_ID, extra: { xyear: '2019' } }, entryFields({}, { fields: f }, {})).ok);
+});
+
+test('Ask AI: the Vehicle category is found by id, or by a name someone gave it; the summary reads like a car', () => {
+  const cats = sortCategories({ lights: { name: 'Lights', order: 0 }, [VEHICLE_CAT_ID]: { name: 'Vehicle', order: -1, fields: VEHICLE_CAT_FIELDS } });
+  assert.strictEqual(vehicleCat(cats).id, VEHICLE_CAT_ID);
+  assert.strictEqual(vehicleCat(sortCategories({ a: { name: 'Vehicle info', order: 0 } })).id, 'a');
+  assert.strictEqual(vehicleCat(sortCategories({ a: { name: 'Lights', order: 0 } })), null);
+  const s = { items: { a: { cat: VEHICLE_CAT_ID, extra: { xyear: '2019', xmake: 'Ford', xmodel: 'Transit 250', xengine: '3.7L V6' } } } };
+  assert.strictEqual(vehicleSummary(s, cats), '2019 Ford Transit 250');
+  assert.strictEqual(vehicleSummary({}, cats), '');
+});
+
+test('Ask AI: the plate is not the VIN', () => {
+  for (const t of ['Plate', 'Licence plate', 'license', 'Plates']) assert.ok(isPlate(t), t);
+  for (const t of ['VIN', 'Plate / VIN', 'Headlight', 'Template', '']) assert.ok(!isPlate(t), t);
+});
+
+test('Ask AI: the text has the question, the checked parts, the VIN, no plate and no names', () => {
+  const cats = sortCategories({
+    [VEHICLE_CAT_ID]: { name: 'Vehicle', order: -1, fields: VEHICLE_CAT_FIELDS },
+    lights: { name: 'Lights', order: 0 }, plate: { name: 'Plate / VIN', order: 1 }
+  });
+  const s = {
+    odo: { km: 182400, day: '2026-10-20' },
+    items: {
+      v: { cat: VEHICLE_CAT_ID, extra: { xyear: '2019', xmake: 'Ford', xmodel: 'Transit' } },
+      h: { cat: 'lights', label: 'Headlight', value: 'H11', part: 'H11LL', note: 'Both sides\nsame' },
+      p: { cat: 'plate', label: 'Plate', value: 'ABCD 123' },
+      n: { cat: 'plate', label: 'VIN', value: '1FTYR2CM5KKA12345' },
+      o: { cat: 'gone', label: 'Old thing' }
+    },
+    service: { a: { day: '2026-09-10', what: 'Oil change', km: 175000, cost: 89.99, by: 'justin@x.ca' } },
+    reminders: { r: { what: 'Oil change', dueKm: 183000, everyKm: 8000 } }
+  };
+  const problems = [
+    { id: '1', status: 'open', at: 1, text: 'Brakes squeal', name: 'Matt Driver' },
+    { id: '2', status: 'fixed', at: 2, doneAt: 3, text: 'Wiper torn', fixNote: 'New blade', by: 'desirae@x.ca' }
+  ];
+  const oils = [{ state: 'checked' }, { state: 'checked' }, { state: 'missed' }];
+  const base = { question: 'Why do the brakes squeal?', name: 'Van 3', s, cats, problems, oils, oilLast: { at: 9 }, oilDays: 30, today: '2026-10-26', day: t => '2026-10-0' + t };
+  const parts = aiParts(cats, true, problems);
+  assert.deepStrictEqual(parts.filter(p => p.group).map(p => [p.key, p.group, p.name]), [['p:1', 'open', 'Brakes squeal'], ['p:2', 'fixed', 'Wiper torn']]);
+  const all = new Set(parts.filter(p => p.on).map(p => p.key));
+  const t = aiText(Object.assign({ pick: all }, base));
+  assert.ok(t.startsWith('Why do the brakes squeal?\n'));
+  for (const want of ['VEHICLE: Van 3', 'VEHICLE\n- Year: 2019; Make: Ford; Model: Transit', 'Km: 182,400 km (read on 2026-10-20)', '- Headlight: H11; Part number: H11LL; Note: Both sides same',
+    '- VIN: 1FTYR2CM5KKA12345', 'OTHER', 'OPEN PROBLEMS', '- 2026-10-01: Brakes squeal', '- 2026-10-02: Wiper torn | fixed 2026-10-03: New blade',
+    '- 2026-09-10: Oil change; 175,000 km; $89.99', 'Oil change, due at 183,000 km (600 km to go); every 8,000 km; due soon',
+    '- Last checked 2026-10-09', '- Last 30 days: checked on 2 shifts, not checked on 1']) assert.ok(t.includes(want), want + '\n' + t);
+  for (const no of ['ABCD 123', 'Matt', 'desirae', 'justin']) assert.ok(!t.includes(no), no);
+  assert.ok(aiText(Object.assign({}, base, { pick: new Set(all).add('plate') })).includes('Plate: ABCD 123'));
+  // only what's checked
+  const few = aiText(Object.assign({}, base, { question: '', pick: new Set(['c:plate']) }));
+  assert.ok(few.includes('VIN: 1FTYR2CM5KKA12345'));
+  for (const no of ['Km:', 'Headlight', 'Year: 2019', 'PROBLEMS', 'SERVICE', 'OIL', 'OTHER']) assert.ok(!few.includes(no), no);
+  assert.ok(few.startsWith("Tell me what's useful"));
+  // one problem on its own
+  const one = aiText(Object.assign({}, base, { pick: new Set(['p:2']) }));
+  assert.ok(one.includes('FIXED PROBLEMS') && one.includes('Wiper torn') && !one.includes('Brakes') && !one.includes('OPEN PROBLEMS'));
+  assert.deepStrictEqual(AI_TARGETS.map(x => x.name), ['Gemini', 'ChatGPT', 'Claude']);
+});

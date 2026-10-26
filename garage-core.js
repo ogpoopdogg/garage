@@ -583,3 +583,121 @@ export function cleanService(raw) {
 
 export function fmtKm(n) { return Math.round(n).toLocaleString("en-CA") + " km"; }
 export function fmtMoney(n) { return "$" + Number(n).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+// ---------- Ask AI ----------
+// The Vehicle category: year, make, model, trim and engine, as the category's own fields (like any field added in
+// the category window), so each vehicle has one entry in it. Garage adds it the first time someone asks for it.
+export const VEHICLE_CAT_ID = "vehicle";
+export const VEHICLE_CAT_FIELDS = {
+    xyear: { name: "Year", order: 0 }, xmake: { name: "Make", order: 1 }, xmodel: { name: "Model", order: 2 },
+    xtrim: { name: "Trim", order: 3 }, xengine: { name: "Engine", order: 4 },
+    label: { name: "What", order: 5, off: true }, value: { name: "Type or size", order: 6, off: true },
+    part: { name: "Part number", order: 7, off: true }, link: { name: "Where to buy (link)", order: 8, off: true },
+    note: { name: "Note", order: 9 }
+};
+// The Vehicle category in sortCategories() output: the one Garage added, or one someone already called Vehicle
+export const vehicleCat = cats => (cats || []).find(c => c.id === VEHICLE_CAT_ID) || (cats || []).find(c => /^vehicle( info| details)?$/i.test(c.name)) || null;
+// "2019 Ford Transit 250 XLT", from the vehicle's entries in the Vehicle category ("" when nothing's saved)
+export function vehicleSummary(s, cats) {
+    const cat = vehicleCat(cats);
+    if (!cat) return "";
+    const got = {};
+    for (const it of Object.values((s && s.items) || {})) {
+        if (!it || it.cat !== cat.id) continue;
+        for (const f of entryFields(it, cat, fieldNames(cats))) if (f.text && !got[f.name.toLowerCase()]) got[f.name.toLowerCase()] = f.text.trim();
+    }
+    return ["year", "make", "model", "trim"].map(k => got[k]).filter(Boolean).join(" ");
+}
+
+// The licence plate (not the VIN) is only sent when it's checked: an entry called Plate, or a field called Plate
+const PLATE_RE = /\b(plates?|licen[cs]e)\b/i, VIN_RE = /\bvin\b/i;
+export const isPlate = t => PLATE_RE.test(String(t || "")) && !VIN_RE.test(String(t || ""));
+
+// The parts that can be sent, in order: [{ key, name, on, group, at }] (on: checked to start with). "c:" + id is a
+// category, "c:" alone the Other group (entries whose category was deleted), there when other is true. Each problem
+// (problems: reportList() for this vehicle) is "p:" + its id, with group "open" or "fixed" and at (when reported).
+export function aiParts(cats, other, problems) {
+    const prob = (list, group) => list.map(p => ({ key: "p:" + p.id, name: String(p.text).replace(/\s+/g, " "), on: true, group: group, at: p.at }));
+    const ps = problems || [];
+    return [{ key: "km", name: "Km", on: true }]
+        .concat((cats || []).map(c => ({ key: "c:" + c.id, name: c.name, on: true })), other ? [{ key: "c:", name: "Other", on: true }] : [])
+        .concat([{ key: "plate", name: "Licence plate", on: false }],
+            prob(ps.filter(p => p.status === "open"), "open"), prob(ps.filter(p => p.status !== "open"), "fixed"),
+            [{ key: "service", name: "Service log", on: true }, { key: "reminders", name: "Service due", on: true }, { key: "oil", name: "Oil checks", on: true }]);
+}
+// The two groups the problems are in
+export const AI_GROUPS = { open: "Open problems", fixed: "Fixed problems" };
+
+// Questions to start from
+export const AI_QUESTIONS = [
+    { name: "Diagnose problems", text: "What could be causing the open problems below, and what should we check first?" },
+    { name: "Maintenance due", text: "What maintenance should this vehicle have at its current km, and is anything overdue going by the service log?" },
+    { name: "Part numbers", text: "Find the right part numbers for this vehicle (bulbs, filters, wiper blades, battery) and say where they're usually sold in Canada." },
+    { name: "Recalls and common issues", text: "What are the common problems and any recalls for this vehicle? Use the VIN if it's below." },
+    { name: "Repair or replace", text: "Going by its age, km and repair history, is this vehicle worth repairing or close to the point of replacing?" }
+];
+
+// Where the text goes. None of them fills its box from a link for this much text, so it's copied and pasted.
+export const AI_TARGETS = [
+    { key: "gemini", name: "Gemini", url: "https://gemini.google.com/app" },
+    { key: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/" },
+    { key: "claude", name: "Claude", url: "https://claude.ai/new" }
+];
+
+// The question and the checked parts of a vehicle's records, as text to paste into an AI chat.
+// o: { question, name, s (garage/vehicles/{key}), cats, problems (reportList() for this vehicle), oils (oilList() for
+// this vehicle), oilLast ({ at } or null), oilDays, today (day key), day (time → day key), pick (Set of aiParts keys) }.
+// People's names aren't sent.
+export function aiText(o) {
+    const pick = k => o.pick.has(k), s = o.s || {}, out = [];
+    const day = t => typeof t === "number" ? o.day(t) : "";
+    const section = (title, lines) => { if (lines.length) out.push("", title, ...lines); };
+    out.push(String(o.question || "").trim() || "Tell me what's useful to know about this vehicle.");
+    out.push("", "Below are our fleet records for this vehicle. Use them in your answer, look up anything else you need " +
+        "(for example from the VIN), and say clearly when something is a guess.");
+    out.push("", "VEHICLE: " + o.name, "Today: " + o.today);
+    if (pick("km")) {
+        const km = currentKm(s);
+        out.push("Km: " + (km === null ? "not known" : fmtKm(km) + (s.odo && s.odo.km === km ? " (read on " + (s.odo.day || day(s.odo.at)) + ")" : " (from the service log)")));
+    }
+    const names = fieldNames(o.cats);
+    for (const gr of itemGroups(s.items, o.cats)) {
+        if (!pick("c:" + gr.cat.id)) continue;
+        const lines = [];
+        for (const it of gr.items) {
+            let fs = entryFields(it, gr.cat.id ? gr.cat : null, names).filter(f => f.text.trim());
+            const lab = fs.find(f => f.key === "label");
+            if (!pick("plate")) {
+                if (isPlate(lab ? lab.text : entryTitle(it))) continue;
+                fs = fs.filter(f => !isPlate(f.name));
+            }
+            if (!fs.length) continue;
+            const val = fs.find(f => f.key === "value");
+            const head = lab ? lab.text + (val ? ": " + val.text : "") : "";
+            const rest = fs.filter(f => !lab || (f !== lab && f !== val)).map(f => f.name + ": " + f.text.replace(/\s+/g, " "));
+            lines.push("- " + [head].concat(rest).filter(Boolean).join("; "));
+        }
+        section(gr.cat.name.toUpperCase(), lines);
+    }
+    const probs = (o.problems || []).filter(p => pick("p:" + p.id));
+    section("OPEN PROBLEMS (reported by drivers or the office)", probs.filter(p => p.status === "open").map(p => "- " + day(p.at) + ": " + p.text.replace(/\s+/g, " ")));
+    section("FIXED PROBLEMS", probs.filter(p => p.status !== "open").map(p => "- " + day(p.at) + ": " + p.text.replace(/\s+/g, " ") +
+        " | fixed" + (p.doneAt ? " " + day(p.doneAt) : "") + (p.fixNote ? ": " + p.fixNote.replace(/\s+/g, " ") : "")));
+    if (pick("service")) section("SERVICE LOG (newest first)", serviceList(s.service).map(e => "- " + [e.day + ": " + e.what,
+        typeof e.km === "number" ? fmtKm(e.km) : "", typeof e.cost === "number" ? fmtMoney(e.cost) : "", e.note ? e.note.replace(/\s+/g, " ") : ""].filter(Boolean).join("; ")));
+    if (pick("reminders")) section("SERVICE DUE", reminderList(s.reminders, currentKm(s), o.today).map(r => {
+        const st = r.st, due = [];
+        if (typeof r.dueKm === "number") due.push("at " + fmtKm(r.dueKm) + (st.kmLeft === null ? "" : st.kmLeft < 0 ? " (" + fmtKm(-st.kmLeft) + " overdue)" : " (" + fmtKm(st.kmLeft) + " to go)"));
+        if (r.dueDay) due.push("on " + r.dueDay);
+        const every = [r.everyKm ? "every " + fmtKm(r.everyKm) : "", r.everyMonths ? "every " + r.everyMonths + (r.everyMonths === 1 ? " month" : " months") : ""].filter(Boolean).join(" or ");
+        return "- " + [r.what + (due.length ? ", due " + due.join(" or ") : ""), every, st.state === "overdue" ? "OVERDUE" : st.state === "soon" ? "due soon" : "", r.note ? r.note.replace(/\s+/g, " ") : ""].filter(Boolean).join("; ");
+    }));
+    if (pick("oil")) {
+        const done = (o.oils || []).filter(x => x.state === "checked").length, missed = (o.oils || []).filter(x => x.state === "missed").length;
+        const lines = [];
+        if (o.oilLast && typeof o.oilLast.at === "number") lines.push("- Last checked " + day(o.oilLast.at));
+        if (done || missed) lines.push("- Last " + o.oilDays + " days: checked on " + done + (done === 1 ? " shift" : " shifts") + ", not checked on " + missed);
+        section("OIL LEVEL CHECKS (drivers are asked on the time clock to check the oil)", lines);
+    }
+    return out.join("\n");
+}

@@ -43,12 +43,19 @@ One page for everything we know about each vehicle:
   tag 1,000 km or 14 days ahead and *Overdue* after. **Done** logs the service and moves a
   repeating reminder to the next time. The vehicle's km is the higher of **Update km** and the
   service log.
-- **Changes:** each vehicle lists who changed what in Garage. Changes to the categories and to the
+- **Changes:** each vehicle lists who changed what in Garage (the newest 10, and **Show more** adds 20
+  at a time; an entry's earlier versions work the same way). Changes to the categories and to the
   schedule for all vehicles show on the Oil schedule and Categories tabs.
 - **Trash:** deleted entries, service, reminders and removed vehicles stay in **Trash** for 30
   days, where **Put back** restores them.
 - **Search and filters:** search finds an entry on every vehicle, for example `H11` or `wiper`;
   the filters show only vehicles with open problems, oil due or service due.
+- **Ask AI:** on a vehicle's page, **Ask AI** copies your question with the parts of the vehicle's
+  records you check (**Check all** checks them all; each problem has its own box under **Open
+  problems** and **Fixed problems**; the licence plate starts unchecked, the VIN is in **Plate / VIN**) and opens Gemini, ChatGPT or Claude in a new tab. None of them takes this much
+  text from a link, so paste it there. People's names aren't sent. **Add them** (when no year, make
+  or model is saved) adds a **Vehicle** category the first time, with Year, Make, Model, Trim and
+  Engine as its own fields, like any field added in the category window.
 - **Export spreadsheet:** one CSV file with every vehicle's info, service, reminders and problems.
 - **Install as an app** and **no signal:** Garage installs like the admin panel (the *Install app*
   button, or *Add to Home Screen* on an iPhone) and opens with no signal, showing the copy it saved

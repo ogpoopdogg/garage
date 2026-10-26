@@ -310,6 +310,27 @@
         .fld-row input[type=checkbox] { flex: none; width: 20px; height: 20px; accent-color: var(--yellow); cursor: pointer; }
         .fld-row .fld-kind { color: var(--dim); font-size: 0.8rem; white-space: nowrap; }
         .fld-row .icon-btn[hidden] { display: none; }
+        /* The Ask AI window: what to send, then where */
+        .v-model { color: var(--muted); margin-top: 6px; font-size: 1rem; }
+        .ai-missing { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 14px; border-radius: 12px; font-size: 0.92rem;
+            color: var(--orange); background: rgba(255, 159, 67, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 159, 67, 0.3); }
+        .ai-missing span { flex: 1; min-width: 180px; }
+        .ai-picks { margin: 8px 0 14px; }
+        .ai-picks .chip { height: 30px; font-size: 0.88rem; }
+        .ai-parts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 6px 0 14px; }
+        .ai-parts label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; background: rgba(255, 255, 255, 0.03); min-width: 0; }
+        .ai-parts label span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ai-parts .all { grid-column: 1 / -1; font-weight: 600; }
+        .ai-parts .grp { grid-column: 1 / -1; font-weight: 600; margin-top: 4px; }
+        .ai-parts p.grp { font-weight: 400; padding: 2px 8px; }
+        .ai-parts .sub { grid-column: 1 / -1; margin-left: 22px; }
+        .ai-parts .sub span { white-space: normal; overflow-wrap: anywhere; }
+        .ai-parts input[type=checkbox] { flex: none; width: 20px; height: 20px; accent-color: var(--yellow); cursor: pointer; }
+        .ai-preview { margin-bottom: 12px; }
+        .ai-preview summary { cursor: pointer; color: var(--muted); font-size: 0.92rem; }
+        .ai-preview .textarea { margin-top: 8px; min-height: 180px; font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .ai-go { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .ai-go .btn { width: 100%; }
 
         /* ---------- Modal ---------- */
         .modal-backdrop {
@@ -646,6 +667,28 @@
         </div>
     </div>
 
+    <!-- Ask AI: the question and the vehicle's records, copied, then the AI opens -->
+    <div class="modal-backdrop" id="aiModal">
+        <form class="modal" role="dialog" aria-modal="true" aria-labelledby="aiTitle" id="aiForm" novalidate>
+            <h2 id="aiTitle">Ask AI</h2>
+            <p class="modal-sub">Copies your question with this vehicle's records, then opens the AI. Paste it there: long-press the box and tap Paste, or Ctrl+V on a computer.</p>
+            <div id="aiMissing"></div>
+            <div class="field"><label for="aiQ">Your question</label><textarea class="textarea" id="aiQ" maxlength="2000" placeholder="e.g. What could make the brakes squeal?"></textarea></div>
+            <div class="chips ai-picks" id="aiPicks"></div>
+            <div class="label">What to send</div>
+            <div class="ai-parts" id="aiParts"></div>
+            <details class="ai-preview" id="aiPreview"><summary>See what gets sent <span id="aiCount"></span></summary><textarea class="textarea" id="aiText" readonly aria-label="What gets sent"></textarea></details>
+            <p class="modal-msg" id="aiMsg" role="alert"></p>
+            <div class="label" style="margin-bottom:6px">Copy and open</div>
+            <div class="ai-go" id="aiGo"></div>
+            <div class="modal-foot" style="margin-top:14px">
+                <button type="button" class="btn ghost" id="aiCopy">Copy only</button>
+                <span class="spacer"></span>
+                <button type="button" class="btn ghost" data-close>Close</button>
+            </div>
+        </form>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script type="module">
@@ -685,6 +728,7 @@
         // false would leave the RouteWatcher vehicles out.
         const GPS_UNITS_ARE_VEHICLES = true;
         const OIL_DAYS = 60;      // a vehicle's page shows the oil checks from the last 60 days (Show older adds 90 more)
+        const HIST_FIRST = 10, HIST_MORE = 20; // a Changes list shows the newest 10, and Show more adds 20 at a time
         const LOOK_DAYS = 14;     // the Vehicle checks tab shows the last two weeks of oil checks, like the admin Inbox did
         const NEED = ["cats", "garage", "vans", "reports"]; // what has to load before a vehicle can be found
         const SNAP = "garage_saved_copy_v1";                 // localStorage: the last data seen, for opening with no signal
@@ -695,7 +739,7 @@
         let cats = [], catsRaw = null, stored = {}, reports = {}, problemEdits = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {}, trash = {}, history = [];
         let gpsRaw = null, vansRaw = {}, vehicles = [];
         let loaded = {}, loadErr = null, savedCopyAt = 0, connected = false, everConnected = false, signedInAt = 0;
-        let oilDays = OIL_DAYS, filter = "all", histAll = false, purged = false;
+        let oilDays = OIL_DAYS, filter = "all", histShown = HIST_FIRST, purged = false;
         let view = "vehicles";    // a tab name, or "v:" + vehicle key
         const now = () => Date.now() + serverOffset;
         const liveReady = () => NEED.every(k => loaded[k]);
@@ -913,29 +957,38 @@
             render();
         }
 
-        // The Changes list for the vehicle on screen (or for all vehicles on the Oil schedule and Categories tabs)
+        // The Changes list for the vehicle on screen (or for all vehicles on the Oil schedule and Categories tabs).
+        // It shows the newest 10, and Show more adds 20 at a time; only those (and one more, to know there are more)
+        // are loaded.
         function syncHistory() {
             const want = view.startsWith("v:") ? view.slice(2) : view === "oil" || view === "categories" ? g.HISTORY_ALL : null;
             if (!user || want === histKey) return;
             if (histUnsub) histUnsub();
-            histUnsub = null; histKey = want; history = []; histAll = false;
+            histUnsub = null; histKey = want; history = []; histShown = HIST_FIRST;
+            listenHistory();
+        }
+        function listenHistory() {
+            const want = histKey;
+            if (histUnsub) histUnsub();
+            histUnsub = null;
             if (!want || !/^([a-z0-9]{1,60}|_all)$/.test(want)) return;
-            histUnsub = onValue(query(ref(db, G.history + "/" + want), limitToLast(200)), s => {
+            histUnsub = onValue(query(ref(db, G.history + "/" + want), limitToLast(histShown + 1)), s => {
                 history = Object.values(s.val() || {}).filter(h => h && h.text).sort((a, b) => (b.at || 0) - (a.at || 0));
                 render();
             }, err => console.warn("Couldn't load the changes", err));
         }
         function historyHtml() {
             if (!history.length) return '<p class="hint">Nothing changed in Garage yet.</p>';
-            const list = histAll ? history : history.slice(0, 12);
+            const list = history.slice(0, histShown);
             return '<div>' + list.map(h => '<div class="hist-line"><span class="hist-text">' + esc(h.text) + '</span><span class="muted">' + esc((h.by || "").split("@")[0]) + " · " + esc(ago(h.at)) + "</span></div>").join("") + "</div>" +
-                (history.length > list.length ? '<button type="button" class="btn sm ghost" data-hist-all style="margin-top:8px">Show all ' + history.length + "</button>" : "");
+                (history.length > list.length ? '<button type="button" class="btn sm ghost" data-hist-more style="margin-top:8px">Show more</button>' : "");
         }
-        document.addEventListener("click", e => { if (e.target.closest("[data-hist-all]")) { histAll = true; render(); } });
+        document.addEventListener("click", e => { if (e.target.closest("[data-hist-more]")) { histShown += HIST_MORE; listenHistory(); render(); } });
 
         // ---------- Edit history on each entry ----------
         // "Edited by desirae · 22 Oct, 3:10 pm  Show what it said before", and under it each earlier version
         const openEdits = new Set(); // the entries showing their earlier versions ("item:12:-Nabc", "p:-Nxyz")
+        const editsShown = new Map(); // how many earlier versions each one shows (the newest 10, then 20 more each Show more)
         const who = b => String(b || "").split("@")[0];
         const months = n => n + (n === 1 ? " month" : " months");
         // A field's name and how its old value reads, for each kind of entry
@@ -962,11 +1015,14 @@
             return '<div class="edited">Edited' + (last.by ? " by " + esc(who(last.by)) : "") + (typeof last.at === "number" ? " · " + esc(ago(last.at)) : "") +
                 (list.length > 1 ? " · " + list.length + " edits" : "") +
                 '<button type="button" data-edits="' + esc(id) + '" aria-expanded="' + open + '">' + (open ? "Hide earlier versions" : "Show what it said before") + "</button></div>" +
-                (open ? '<div class="versions">' + list.map(ed => '<div><div class="v-when">Before ' + (ed.by ? esc(who(ed.by)) + "'s" : "the") + " edit" + (typeof ed.at === "number" ? ", " + esc(ago(ed.at)) : "") + "</div>" +
+                (open ? '<div class="versions">' + list.slice(0, editsShown.get(id) || HIST_FIRST).map(ed => '<div><div class="v-when">Before ' + (ed.by ? esc(who(ed.by)) + "'s" : "the") + " edit" + (typeof ed.at === "number" ? ", " + esc(ago(ed.at)) : "") + "</div>" +
                     Object.entries(ed.was).sort((a, b) => pos(a[0]) - pos(b[0])).map(([k, v]) => { const [n, t] = wasText(kind, k, v, it); return '<div class="v-field"><b>' + esc(n) + ":</b> " + (t ? esc(t) : '<span class="muted">(empty)</span>') + "</div>"; }).join("") +
-                    "</div>").join("") + "</div>" : "");
+                    "</div>").join("") + "</div>" +
+                    (list.length > (editsShown.get(id) || HIST_FIRST) ? '<button type="button" class="btn sm ghost" data-edits-more="' + esc(id) + '" style="margin-top:6px">Show more</button>' : "") : "");
         }
         document.addEventListener("click", e => {
+            const m = e.target.closest("[data-edits-more]");
+            if (m) { editsShown.set(m.dataset.editsMore, (editsShown.get(m.dataset.editsMore) || HIST_FIRST) + HIST_MORE); render(); return; }
             const b = e.target.closest("[data-edits]");
             if (!b) return;
             const id = b.dataset.edits;
@@ -1079,6 +1135,7 @@
                 else if (view === "categories") renderCategories();
                 else if (view === "trash") renderTrash();
                 else renderVehicle(view.slice(2));
+                if ($("aiModal").classList.contains("show")) aiRender();
             });
         }
         function renderBanner() {
@@ -1692,11 +1749,12 @@
                     : '<p class="hint" style="margin-top:6px">' + (loaded.employees ? "No oil checks on shifts in this vehicle." : "Loading…") + "</p>") +
                 '<button type="button" class="btn sm ghost" data-oil-older style="margin-top:8px">Show older</button></div></div>';
 
-            box.innerHTML = '<div class="v-head"><div><h1>' + esc(v.name) + '</h1><div class="tags" style="margin-top:8px">' +
+            const model = g.vehicleSummary(s, cats);
+            box.innerHTML = '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
                 (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
                 (v.inClock ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
-                '<div class="panel-actions"><button type="button" class="btn sm" id="odoBtn">Update km</button><button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button></div></div>' +
+                '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button><button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button></div></div>' +
                 '<div class="v-cols"><div>' +
                     '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
                         '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>" +
@@ -1977,9 +2035,131 @@
             if (e.target.closest("#addSvc")) openSvc(key, null);
             else if (e.target.closest("#addRem")) openRem(key, null);
             else if (e.target.closest("#addProblem")) addProblem(key);
+            else if (e.target.closest("#askAi")) openAi(key);
             else if (e.target.closest("#odoBtn")) updateKm(key);
             else if (e.target.closest("#removeVehicle")) removeVehicle(key);
         });
+
+        // ---------- Ask AI ----------
+        // The question and the checked parts of the vehicle's records are copied, then the AI opens in a new tab (on a
+        // phone, maybe its app). None of them fills in its box from a link for this much text, so it's pasted there.
+        // What's unchecked and the last AI used are remembered on this device.
+        const AI_STORE = "garage.ai";
+        let aiKey = null;
+        function aiSaved() { try { return JSON.parse(localStorage.getItem(AI_STORE)) || {}; } catch (e) { return {}; } }
+        function aiSave(v) { try { localStorage.setItem(AI_STORE, JSON.stringify(Object.assign(aiSaved(), v))); } catch (e) { /* private window: not remembered */ } }
+        const aiBoxes = () => Array.from($("aiParts").querySelectorAll("[data-part]"));
+        const aiPick = () => new Set(aiBoxes().filter(b => b.checked).map(b => b.dataset.part));
+        function openAi(key) {
+            aiKey = key;
+            const saved = aiSaved(), s = stored[key] || {};
+            const parts = g.aiParts(cats, g.itemGroups(s.items, cats).some(gr => !gr.cat.id), lookData().vans.filter(r => r.vkey === key));
+            const off = new Set(saved.off || parts.filter(p => !p.on).map(p => p.key));
+            $("aiTitle").textContent = "Ask AI about " + vName(key);
+            $("aiQ").value = ""; $("aiMsg").textContent = "";
+            $("aiPicks").innerHTML = g.AI_QUESTIONS.map((q, i) => '<button type="button" class="chip" data-aiq="' + i + '">' + esc(q.name) + "</button>").join("");
+            // Each problem has its own box, under Open problems or Fixed problems (which check or uncheck all of theirs)
+            const box = p => '<label' + (p.group ? ' class="sub" title="' + esc(p.name) + '"' : "") + '><input type="checkbox" data-part="' + esc(p.key) + '"' +
+                (p.group ? ' data-in="' + p.group + '"' : "") + (off.has(p.key) ? "" : " checked") + "><span>" +
+                (p.group && typeof p.at === "number" ? esc(fmtKey(dayKey(p.at))) + " · " : "") + esc(p.name) + "</span></label>";
+            const groups = Object.keys(g.AI_GROUPS);
+            let html = '<label class="all"><input type="checkbox" id="aiAll"><span>Check all</span></label>';
+            for (const p of parts) {
+                if (p.key === "service" || p.group) for (const gr of groups.splice(0, p.group ? groups.indexOf(p.group) + 1 : groups.length))
+                    html += parts.some(x => x.group === gr) ? '<label class="grp"><input type="checkbox" data-group="' + gr + '"><span>' + esc(g.AI_GROUPS[gr]) + "</span></label>"
+                        : '<p class="grp hint">No ' + esc(g.AI_GROUPS[gr].toLowerCase()) + ".</p>";
+                html += box(p);
+            }
+            $("aiParts").innerHTML = html;
+            const last = g.AI_TARGETS.some(t => t.key === saved.target) ? saved.target : "gemini";
+            $("aiGo").innerHTML = g.AI_TARGETS.map(t => '<button type="button" class="btn' + (t.key === last ? " primary" : "") + '" data-ai="' + t.key + '">' + esc(t.name) + "</button>").join("");
+            $("aiPreview").open = false;
+            aiRender();
+            openModal("aiModal");
+        }
+        function aiBuild() {
+            const key = aiKey, d = lookData(), since = now() - oilDays * 86400000;
+            return g.aiText({
+                question: $("aiQ").value, name: vName(key), s: stored[key] || {}, cats: cats,
+                problems: d.vans.filter(r => r.vkey === key), oils: d.oils.filter(o => o.vkey === key && o.s.in >= since),
+                oilLast: oilLast[key] || null, oilDays: oilDays, today: today(), day: dayKey, pick: aiPick()
+            });
+        }
+        function aiRender() {
+            if (!aiKey) return;
+            const boxes = aiBoxes(), n = boxes.filter(b => b.checked).length;
+            $("aiAll").checked = n === boxes.length;
+            $("aiAll").indeterminate = n > 0 && n < boxes.length;
+            $("aiParts").querySelectorAll("[data-group]").forEach(gb => {
+                const kids = boxes.filter(b => b.dataset.in === gb.dataset.group), k = kids.filter(b => b.checked).length;
+                gb.checked = k === kids.length; gb.indeterminate = k > 0 && k < kids.length;
+            });
+            $("aiMissing").innerHTML = g.vehicleSummary(stored[aiKey], cats) ? "" :
+                '<div class="ai-missing"><span>No year, make or model saved for this vehicle. The AI gives better answers with them (or with the VIN).</span><button type="button" class="btn sm" id="aiAddModel">Add them</button></div>';
+            const text = aiBuild();
+            $("aiText").value = text;
+            $("aiCount").textContent = "(" + text.length.toLocaleString("en-CA") + " characters)";
+        }
+        // Copies right away when the browser lets it (so the AI can open in the same tap), otherwise through the
+        // clipboard API. Resolves to true when it's copied.
+        function copyNow(text) {
+            const t = document.createElement("textarea");
+            t.value = text; t.setAttribute("readonly", ""); t.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+            document.body.appendChild(t);
+            t.select(); t.setSelectionRange(0, text.length);
+            let ok = false;
+            try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+            t.remove();
+            return ok;
+        }
+        async function aiSend(target) {
+            const text = aiBuild();
+            $("aiMsg").textContent = "";
+            let ok = copyNow(text);
+            if (!ok && navigator.clipboard && navigator.clipboard.writeText) ok = await navigator.clipboard.writeText(text).then(() => true, () => false);
+            if (!ok) {
+                $("aiMsg").textContent = "Couldn't copy it. Open “See what gets sent”, select all of it and copy it yourself.";
+                $("aiPreview").open = true; $("aiText").focus(); $("aiText").select();
+                return;
+            }
+            if (!target) { toast("Copied."); return; }
+            aiSave({ target: target.key });
+            $("aiGo").querySelectorAll("[data-ai]").forEach(b => b.classList.toggle("primary", b.dataset.ai === target.key));
+            window.open(target.url, "_blank", "noopener");
+            toast("Copied. Paste it into " + target.name + ".");
+        }
+        // The Vehicle category (added the first time), then this vehicle's entry in it
+        async function addModel(key) {
+            let c = g.vehicleCat(cats);
+            if (!c) {
+                const fields = g.VEHICLE_CAT_FIELDS;
+                try {
+                    await write({ [G.cats + "/" + g.VEHICLE_CAT_ID]: { name: "Vehicle", order: cats.length ? Math.min(...cats.map(x => x.order)) - 1 : 0, fields: fields } },
+                        { vkey: ALL, text: "Category Vehicle added, with " + g.fieldsText(g.categoryFields({ fields: fields })) });
+                } catch (err) { $("aiMsg").textContent = "Couldn't add the Vehicle category: " + errMsg(err); return; }
+                c = g.vehicleCat(cats) || { id: g.VEHICLE_CAT_ID };
+            }
+            const it = Object.entries((stored[key] || {}).items || {}).find(([, x]) => x && x.cat === c.id);
+            closeModal("aiModal");
+            openItem(key, it ? it[0] : null, c.id);
+        }
+        $("aiForm").addEventListener("submit", e => e.preventDefault());
+        $("aiQ").addEventListener("input", aiRender);
+        $("aiPicks").addEventListener("click", e => {
+            const b = e.target.closest("[data-aiq]");
+            if (!b) return;
+            $("aiQ").value = g.AI_QUESTIONS[Number(b.dataset.aiq)].text;
+            aiRender();
+        });
+        $("aiParts").addEventListener("change", e => {
+            if (e.target.id === "aiAll") aiBoxes().forEach(b => { b.checked = e.target.checked; });
+            if (e.target.dataset.group) aiBoxes().filter(b => b.dataset.in === e.target.dataset.group).forEach(b => { b.checked = e.target.checked; });
+            aiSave({ off: aiBoxes().filter(b => !b.checked).map(b => b.dataset.part) });
+            aiRender();
+        });
+        $("aiMissing").addEventListener("click", e => { if (e.target.closest("#aiAddModel") && aiKey) addModel(aiKey); });
+        $("aiGo").addEventListener("click", e => { const b = e.target.closest("[data-ai]"); if (b) aiSend(g.AI_TARGETS.find(t => t.key === b.dataset.ai)); });
+        $("aiCopy").addEventListener("click", () => aiSend(null));
 
         // ---------- Trash ----------
         const KIND = { item: "Entry", service: "Service", reminder: "Reminder", vehicle: "Vehicle" };
