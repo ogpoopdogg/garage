@@ -251,6 +251,26 @@
         .hist-line:first-child { border-top: 0; }
         .hist-line .muted { font-size: 0.8rem; }
         .hist-text { overflow-wrap: anywhere; }
+        .search.sm { margin-bottom: 10px; }
+        .search.sm .input { height: 44px; font-size: 1rem; }
+        .look-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+        .look-note { color: var(--muted); font-size: 0.88rem; margin-bottom: 10px; }
+        .entry.cleared { cursor: pointer; background: transparent; box-shadow: inset 0 0 0 1px var(--line); opacity: 0.8; }
+        .entry.cleared:hover { box-shadow: inset 0 0 0 1px var(--yellow); }
+        .entry .e-read { margin-top: 6px; color: var(--dim); font-size: 0.82rem; }
+        .cal-head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+        .cal-head .select { flex: 1; min-width: 0; }
+        .cal-head #calYear { flex: 0 0 92px; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+        .cal-dow { text-align: center; font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 0; }
+        .cal-day { height: 40px; border: 0; border-radius: 10px; background: var(--asphalt-3); cursor: pointer; font-weight: 600; }
+        .cal-day:hover { box-shadow: inset 0 0 0 1px var(--yellow); }
+        .cal-day:focus-visible { outline: 2px solid var(--yellow); }
+        .cal-day:disabled { opacity: 0.3; cursor: default; box-shadow: none; }
+        .cal-day.today { box-shadow: inset 0 0 0 1px var(--shoulder); }
+        .cal-day.in { background: rgba(255, 204, 0, 0.18); color: var(--yellow); }
+        .cal-day.end { background: var(--yellow); color: #111; }
+        .cal-pick { margin: 12px 0 4px; color: var(--muted); font-size: 0.95rem; min-height: 1.5em; }
         .look-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
 
         /* ---------- Oil check schedule (moved here from the admin panel) ---------- */
@@ -439,8 +459,21 @@
                 <div><h1 class="panel-title">Vehicle checks</h1><p class="panel-sub">Problems drivers reported at Vehicle Check, and oil checks from the last two weeks.</p></div>
             </div>
             <div class="look-grid">
-                <div class="card"><h3>Vehicle problems <span class="tab-count" id="lookVanCount">0</span></h3><p class="hint" style="margin-bottom:12px">Fixed ones stay here, under the open ones. To add one yourself, open the vehicle.</p><div class="list" id="lookVans"></div></div>
-                <div class="card"><h3>Oil checks <span class="tab-count" id="lookOilCount">0</span></h3><p class="hint" style="margin-bottom:12px">Missed checks wait for a Got it. Drivers on the clock who haven't checked yet show too.</p><div class="list" id="lookOil"></div></div>
+                <div class="card">
+                    <h3>Vehicle problems <span class="tab-count" id="lookVanCount" hidden>0</span></h3>
+                    <p class="hint" style="margin-bottom:12px">New ones count on the tab until they're marked as read. Fixed ones stay here until they're cleared; only a fixed one can be cleared. To add one yourself, open the vehicle.</p>
+                    <div class="search sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" id="probSearch" type="search" placeholder="Search problems, e.g. headlight or 12" autocomplete="off" aria-label="Search vehicle problems"></div>
+                    <p class="look-note" id="probNote" hidden></p>
+                    <div class="list" id="lookVans"></div>
+                </div>
+                <div class="card">
+                    <div class="card-head" style="margin-bottom:4px"><h3>Oil checks <span class="tab-count" id="lookOilCount" hidden>0</span></h3><button type="button" class="btn sm ghost" id="oilClearAll">Clear all</button></div>
+                    <p class="hint" style="margin-bottom:12px">Missed checks count on the tab until they're marked as read. Clear takes a check off this list; search finds it again. Drivers on the clock who haven't checked yet show too.</p>
+                    <div class="search sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" id="oilSearch" type="search" placeholder="Search oil checks, e.g. a driver or 12" autocomplete="off" aria-label="Search oil checks"></div>
+                    <div class="look-tools"><button type="button" class="btn sm" id="oilDatesBtn" aria-haspopup="dialog">Any dates</button><button type="button" class="btn sm ghost" id="oilDatesClear" hidden>Clear dates</button></div>
+                    <p class="look-note" id="oilNote" hidden></p>
+                    <div class="list" id="lookOil"></div>
+                </div>
             </div>
         </section>
 
@@ -591,6 +624,28 @@
         </form>
     </div>
 
+    <!-- The date range calendar for searching oil checks -->
+    <div class="modal-backdrop" id="calModal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="calTitle">
+            <h2 id="calTitle">Pick the dates</h2>
+            <p class="modal-sub">Tap the first day, then the last day. Any month can be picked.</p>
+            <div class="cal-head">
+                <button type="button" class="icon-btn" id="calPrev" aria-label="Month before"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+                <select class="select" id="calMonth" aria-label="Month"></select>
+                <select class="select" id="calYear" aria-label="Year"></select>
+                <button type="button" class="icon-btn" id="calNext" aria-label="Month after"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+            </div>
+            <div class="cal-grid" id="calGrid"></div>
+            <p class="cal-pick" id="calPick"></p>
+            <div class="modal-foot">
+                <button type="button" class="btn ghost" id="calAny">Any dates</button>
+                <span class="spacer"></span>
+                <button type="button" class="btn ghost" data-close>Cancel</button>
+                <button type="button" class="btn primary" id="calOk">Show these dates</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script type="module">
@@ -620,10 +675,11 @@
         const reportFailedSignIn = typeof core.reportFailedSignIn === "function" ? core.reportFailedSignIn : noReport;
         const reportRefusedSignIn = typeof core.reportRefusedSignIn === "function" ? core.reportRefusedSignIn : noReport;
         const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = fa;
-        const { ref, onValue, get, update, push, query, orderByChild, startAt, limitToLast, serverTimestamp } = fd;
+        const { ref, onValue, get, update, push, query, orderByChild, startAt, endAt, limitToLast, serverTimestamp } = fd;
 
         const $ = id => document.getElementById(id);
-        const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history", problemEdits: "garage/problem_edits" };
+        const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history", problemEdits: "garage/problem_edits",
+            problemReads: "garage/problem_reads", problemCleared: "garage/problem_cleared", oilCleared: "garage/oil_cleared", oilShown: "garage/oil_shown" };
         // Garage lists the vehicles in RouteWatcher (GPS), the time clock's vans (Admin → Vehicles → Vehicles without GPS)
         // and the ones added here. Everything is still kept by the vehicle's name, never by a GPS unit.
         // false would leave the RouteWatcher vehicles out.
@@ -635,6 +691,7 @@
 
         // ---------- State ----------
         let user = null, serverOffset = 0, unsubs = [], shiftUnsubs = {}, histUnsub = null, histKey = null;
+        let problemReads = {}, problemCleared = {}, oilCleared = {}, oilShown = {}, shownShifts = {};
         let cats = [], catsRaw = null, stored = {}, reports = {}, problemEdits = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {}, trash = {}, history = [];
         let gpsRaw = null, vansRaw = {}, vehicles = [];
         let loaded = {}, loadErr = null, savedCopyAt = 0, connected = false, everConnected = false, signedInAt = 0;
@@ -750,6 +807,7 @@
             if (histUnsub) histUnsub(); histUnsub = null; histKey = null;
         }
         function clearData() {
+            problemReads = {}; problemCleared = {}; oilCleared = {}; oilShown = {}; shownShifts = {}; oilRange = null;
             cats = []; catsRaw = null; stored = {}; reports = {}; problemEdits = {}; oilPlans = {}; oilLast = {}; employees = {}; shiftsByEk = {}; trash = {}; history = [];
             gpsRaw = null; vansRaw = {}; vehicles = []; loaded = {}; loadErr = null; savedCopyAt = 0;
         }
@@ -798,6 +856,10 @@
             sub("vans", ref(db, P.vans), s => { vansRaw = s.val() || {}; syncVehicles(); });
             sub("reports", ref(db, P.vanReports), s => { reports = s.val() || {}; });
             sub("problemEdits", ref(db, G.problemEdits), s => { problemEdits = s.val() || {}; });
+            sub("problemReads", ref(db, G.problemReads), s => { problemReads = s.val() || {}; });
+            sub("problemCleared", ref(db, G.problemCleared), s => { problemCleared = s.val() || {}; });
+            sub("oilCleared", ref(db, G.oilCleared), s => { oilCleared = s.val() || {}; });
+            sub("oilShown", ref(db, G.oilShown), s => { oilShown = s.val() || {}; syncShown(); });
             sub("oilPlan", ref(db, P.oilPlan), s => { oilPlans = s.val() || {}; });
             sub("oilLast", ref(db, P.oilLast), s => { oilLast = s.val() || {}; });
             sub("employees", ref(db, P.employees), s => { employees = s.val() || {}; syncShiftListeners(); });
@@ -825,6 +887,25 @@
                 }, err => console.warn("Couldn't load shifts for " + k, err));
             }
         }
+        // Cleared oil checks brought back from search show on the Vehicle checks tab even when they're older than the
+        // shifts loaded above, so those shifts are fetched one by one
+        function syncShown() {
+            const have = new Set(Object.entries(shiftsByEk).flatMap(([k, l]) => l.map(s => k + "|" + s.id)));
+            for (const [k, ids] of Object.entries(oilShown)) for (const id of Object.keys(ids || {})) {
+                const key = k + "|" + id;
+                if (have.has(key) || key in shownShifts) continue;
+                shownShifts[key] = null;
+                get(ref(db, P.shifts + "/" + k + "/" + id)).then(s => {
+                    const v = s.val();
+                    if (v && typeof v.in === "number") { shownShifts[key] = Object.assign({ id: id }, v); render(); }
+                }).catch(err => { delete shownShifts[key]; console.warn("Couldn't load an oil check", err); });
+            }
+        }
+        const shownByEk = () => {
+            const out = {};
+            for (const [key, v] of Object.entries(shownShifts)) if (v) { const k = key.slice(0, key.lastIndexOf("|")); (out[k] = out[k] || []).push(v); }
+            return out;
+        };
         function showOlderOil() {
             oilDays += 90;
             Object.values(shiftUnsubs).forEach(fn => fn()); shiftUnsubs = {};
@@ -904,7 +985,7 @@
                 const names = {};
                 for (const [k, e] of Object.entries(employees)) if (e) names[k] = { name: displayName(e, e.email) };
                 try {
-                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, problemEdits, oilPlans, oilLast, vansRaw, gpsRaw, trash, employees: names }));
+                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, problemEdits, problemReads, problemCleared, oilCleared, oilShown, oilPlans, oilLast, vansRaw, gpsRaw, trash, employees: names }));
                 } catch (e) { /* full or blocked: just no saved copy */ }
             }, 3000);
         }
@@ -913,6 +994,7 @@
             try { c = JSON.parse(localStorage.getItem(SNAP) || "null"); } catch (e) { c = null; }
             if (!c || c.email !== email || typeof c.at !== "number") return;
             catsRaw = c.catsRaw; cats = g.sortCategories(catsRaw); stored = c.stored || {}; reports = c.reports || {}; problemEdits = c.problemEdits || {}; oilPlans = c.oilPlans || {};
+            problemReads = c.problemReads || {}; problemCleared = c.problemCleared || {}; oilCleared = c.oilCleared || {}; oilShown = c.oilShown || {};
             oilLast = c.oilLast || {}; vansRaw = c.vansRaw || {}; gpsRaw = c.gpsRaw || null; trash = c.trash || {}; employees = c.employees || {};
             savedCopyAt = c.at;
             syncVehicles();
@@ -988,6 +1070,7 @@
                 if (!user || $("appScreen").hidden) return;
                 renderBanner();
                 const look = lookData();
+                // The tab counts the problems not read yet and the missed oil checks not read yet
                 $("lookCount").hidden = !(look.openVans + look.openOils);
                 $("lookCount").textContent = look.openVans + look.openOils;
                 if (view === "vehicles") renderVehicles();
@@ -1005,7 +1088,7 @@
                 "Changes can't be saved until you're back online.";
             // A failed load (usually permission denied, or the rules not published yet) shows with a Try again button
             $("loadError").hidden = !loadErr;
-            if (loadErr) $("loadErrorText").textContent = "Couldn't load " + ({ cats: "the categories", garage: "the garage", vans: "the van list", reports: "the vehicle problems", problemEdits: "the earlier versions of the problems", oilPlan: "the oil check schedule", oilLast: "the last oil checks", employees: "the employees", trash: "the trash" }[loadErr.name] || loadErr.name) + ": " +
+            if (loadErr) $("loadErrorText").textContent = "Couldn't load " + ({ cats: "the categories", garage: "the garage", vans: "the van list", reports: "the vehicle problems", problemEdits: "the earlier versions of the problems", problemReads: "which problems were read", problemCleared: "the cleared problems", oilCleared: "the cleared oil checks", oilShown: "the oil checks brought back", oilPlan: "the oil check schedule", oilLast: "the last oil checks", employees: "the employees", trash: "the trash" }[loadErr.name] || loadErr.name) + ": " +
                 (/permission/i.test(String(loadErr.err && (loadErr.err.code + " " + loadErr.err.message))) ? "the database said no (permission denied). Check that the newest database rules are published in the Firebase console." : errMsg(loadErr.err));
         }
         const loadingHtml = () => '<div class="boot" style="min-height:30vh"><div><div class="spinner"></div>Loading…</div></div>';
@@ -1103,60 +1186,277 @@
 
         // ---------- Vehicle problems and oil checks (Vehicle checks tab and each vehicle) ----------
         function lookData() {
-            const vans = g.reportList(reports, vanKey);
-            const oils = g.oilList(shiftsByEk, now() - oilDays * 86400000, oilState, vanKey);
+            const vans = g.problemMarks(g.reportList(reports, vanKey), problemReads, problemCleared);
+            const loadedOils = g.oilList(shiftsByEk, now() - oilDays * 86400000, oilState, vanKey);
+            const have = new Set(loadedOils.map(o => o.ek + "|" + o.s.id));
+            const older = g.oilList(shownByEk(), 0, oilState, vanKey).filter(o => !have.has(o.ek + "|" + o.s.id));
+            const oils = g.oilMarks(loadedOils.concat(older), oilCleared, oilShown);
             const lookSince = now() - LOOK_DAYS * 86400000;
-            const recent = oils.filter(o => o.s.in >= lookSince);
-            return { vans, oils, recent, openVans: vans.filter(r => r.status === "open").length, openOils: recent.filter(o => o.open).length };
+            // The tab: the last two weeks and any brought back from search, minus the cleared ones
+            const recent = oils.filter(o => !o.cleared && (o.s.in >= lookSince || o.shown));
+            return { vans, oils, recent, openVans: vans.filter(g.problemUnread).length, openOils: recent.filter(o => o.open).length };
         }
         const vehicleLink = (vkey, name) => vehicleByKey(vkey) ? '<button type="button" class="e-vehicle" data-open="' + esc(vkey) + '">' + esc(name) + "</button>" : esc(name);
-        function problemHtml(r, withVehicle) {
+        const markText = (what, m) => what + (m && m.by ? " · " + esc(who(m.by)) : "") + (m && typeof m.at === "number" ? " · " + esc(ago(m.at)) : "");
+        // onTab: on the Vehicle checks tab (with the vehicle's name, and Clear); a vehicle's own page keeps every problem
+        function problemHtml(r, onTab) {
             const done = r.status !== "open";
-            const who = r.name || empName(r.ek);
-            return '<div class="entry' + (done ? " done" : "") + '"><div class="e-top"><span class="e-who">' +
-                (withVehicle ? "Vehicle " + vehicleLink(r.vkey, r.vehicleName || r.vehicleId) : esc(who)) + '</span><span class="e-when">' + esc(ago(r.at)) + "</span></div>" +
-                (withVehicle ? '<div class="e-detail">Reported by ' + esc(who) + "</div>" : "") +
+            const who_ = r.name || empName(r.ek);
+            const cleared = onTab && r.cleared;
+            return '<div class="entry' + (cleared ? " cleared" : done ? " done" : "") + '"' + (cleared ? ' data-vanback="' + esc(r.id) + '" title="Tap to bring it back"' : "") + '><div class="e-top"><span class="e-who">' +
+                (onTab ? "Vehicle " + vehicleLink(r.vkey, r.vehicleName || r.vehicleId) : esc(who_)) + '</span><span class="e-when">' + esc(ago(r.at)) + "</span></div>" +
+                (onTab ? '<div class="e-detail">Reported by ' + esc(who_) + "</div>" : "") +
                 '<div class="e-note">' + esc(r.text) + "</div>" +
                 (done ? '<div class="e-reply">Fixed' + (r.fixNote ? ": " + esc(r.fixNote) : "") + (r.by ? " · " + esc(r.by) : "") + (r.doneAt ? " · " + esc(ago(r.doneAt)) : "") + "</div>" : "") +
+                (!done && r.read ? '<div class="e-read">' + markText("Read", problemReads[r.id]) + "</div>" : "") +
+                (cleared ? '<div class="e-read">' + markText("Cleared", problemCleared[r.id]) + ". Tap to bring it back.</div>" : "") +
                 editsHtml("problem", "p:" + r.id, problemEdits[r.id]) +
-                '<div class="e-actions">' + (done ? '<button type="button" class="btn sm ghost" data-vanreopen="' + esc(r.id) + '">Reopen</button>'
-                    : '<button type="button" class="btn sm primary" data-vanfixed="' + esc(r.id) + '">Mark fixed</button>') +
-                '<button type="button" class="btn sm ghost" data-vanedit="' + esc(r.id) + '">Edit</button>' +
-                (done ? '<button type="button" class="btn sm ghost" data-vanedit-fix="' + esc(r.id) + '">' + (r.fixNote ? "Edit what was done" : "Add what was done") + "</button>" : "") + "</div></div>";
+                '<div class="e-actions">' + (cleared ? '<button type="button" class="btn sm primary" data-vanback="' + esc(r.id) + '">Bring back</button>'
+                    : (done ? '<button type="button" class="btn sm ghost" data-vanreopen="' + esc(r.id) + '">Reopen</button>'
+                        : (r.read ? "" : '<button type="button" class="btn sm" data-vanread="' + esc(r.id) + '">Mark as read</button>') + '<button type="button" class="btn sm primary" data-vanfixed="' + esc(r.id) + '">Mark fixed</button>') +
+                    '<button type="button" class="btn sm ghost" data-vanedit="' + esc(r.id) + '">Edit</button>' +
+                    (done ? '<button type="button" class="btn sm ghost" data-vanedit-fix="' + esc(r.id) + '">' + (r.fixNote ? "Edit what was done" : "Add what was done") + "</button>" : "") +
+                    // only a fixed problem can be cleared
+                    (onTab && done ? '<button type="button" class="btn sm ghost" data-vanclear="' + esc(r.id) + '">Clear</button>' : "")) + "</div></div>";
         }
+        const oilId = o => o.ek + "|" + o.s.id;
+        const oilMark = (m, o) => m[o.ek] && m[o.ek][o.s.id];
         function oilHtml(o, withVehicle) {
             const s = o.s;
             const what = o.state === "checked" ? "Oil checked" : o.state === "waiting" ? "Not checked yet" : "Oil not checked";
             const detail = (withVehicle && o.vname ? "Vehicle " + vehicleLink(o.vkey, o.vname) + " · " : "") + (o.state === "waiting" ? "On the clock since " + esc(fmtTime(s.in))
                 : o.state === "checked" ? (s.oil.how === "out" ? "Said so at punch out, " : "Ticked the box, ") + esc(fmtTime(s.oil.at))
                 : esc(g.oilMissWhy(s)));
-            return '<div class="entry' + (o.state === "waiting" ? " waiting" : o.open ? "" : " done") + '"><div class="e-top"><span class="e-who">' + esc(empName(o.ek)) +
-                '</span><span class="e-when">' + esc(fmtKey(dayKey(s.in))) + "</span></div>" +
+            const cleared = o.cleared;
+            return '<div class="entry' + (cleared ? " cleared" : o.state === "waiting" ? " waiting" : o.open ? "" : " done") + '"' + (cleared ? ' data-oilback="' + esc(oilId(o)) + '" title="Tap to bring it back"' : "") +
+                '><div class="e-top"><span class="e-who">' + esc(empName(o.ek)) + '</span><span class="e-when">' + esc(fmtKey(dayKey(s.in))) + "</span></div>" +
                 '<div class="e-what">' + what + '</div><div class="e-detail">' + detail + "</div>" +
-                (o.open ? '<div class="e-actions"><button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + s.id) + '">Got it</button></div>'
-                    : s.oil && s.oil.seenBy ? '<div class="e-reply">Seen · ' + esc(s.oil.seenBy) + (s.oil.seenAt ? " · " + esc(ago(s.oil.seenAt)) : "") + "</div>" : "") + "</div>";
+                (!o.open && s.oil && s.oil.seenBy ? '<div class="e-reply">Read · ' + esc(who(s.oil.seenBy)) + (s.oil.seenAt ? " · " + esc(ago(s.oil.seenAt)) : "") + "</div>" : "") +
+                (cleared ? '<div class="e-read">' + markText("Cleared", oilMark(oilCleared, o)) + ". Tap to bring it back.</div>" : "") +
+                '<div class="e-actions">' + (cleared ? '<button type="button" class="btn sm primary" data-oilback="' + esc(oilId(o)) + '">Bring back</button>'
+                    : (o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(oilId(o)) + '">Mark as read</button>' : "") +
+                    // one still on the clock can't be cleared yet: it may still be missed
+                    (o.state !== "waiting" ? '<button type="button" class="btn sm ghost" data-oilclear="' + esc(oilId(o)) + '">Clear</button>' : "")) + "</div></div>";
         }
         const empty = text => '<div class="empty">' + text + "</div>";
-        function renderLook(d) {
-            $("lookVanCount").textContent = d.openVans; $("lookOilCount").textContent = d.openOils;
-            if (!ready()) { $("lookVans").innerHTML = loadingHtml(); return; }
-            $("lookVans").innerHTML = d.vans.map(r => problemHtml(r, true)).join("") || empty("No vehicle problems reported yet.");
-            // Missed and on-the-clock first; checked ones from the last two weeks after
-            $("lookOil").innerHTML = d.recent.filter(o => o.open || o.state === "waiting").concat(d.recent.filter(o => !o.open && o.state !== "waiting"))
-                .map(o => oilHtml(o, true)).join("") || empty(loaded.employees ? "No oil checks in the last two weeks." : "Loading…");
+
+        // ---------- Search on the Vehicle checks tab ----------
+        // Searching shows the cleared ones too; tapping one brings it back. The oil check search looks through the
+        // shifts already loaded (the last 60 days, or more after Show older), or, with dates picked, every shift on those dates.
+        const SEARCH_MAX = 200;
+        let oilFrom = "", oilTo = "", oilRange = null; // oilRange: { from, to, byEk, loading, err } for the dates picked
+        const probSearching = () => !!$("probSearch").value.trim();
+        const oilSearching = () => !!($("oilSearch").value.trim() || oilFrom);
+        const oilWords = o => [empName(o.ek), String(o.ek).replace(/,/g, "."), o.vname, o.vname ? "van " + o.vname : "", fmtKey(dayKey(o.s.in)),
+            o.state === "checked" ? "checked" : o.state === "waiting" ? "waiting not checked yet on the clock" : "missed not checked " + g.oilMissWhy(o.s), o.cleared ? "cleared" : "",
+            o.open ? "unread" : o.s.oil && o.s.oil.seenBy ? "read" : ""];
+        // The oil checks a search finds, newest first
+        function oilFound(d) {
+            const q = $("oilSearch").value;
+            let pool;
+            if (oilFrom) {
+                if (!oilRange || oilRange.loading || oilRange.err) return null;
+                pool = g.oilMarks(g.oilList(oilRange.byEk, 0, oilState, vanKey), oilCleared, oilShown).filter(o => { const k = dayKey(o.s.in); return k >= oilFrom && k <= oilTo; });
+            } else pool = d.oils;
+            return pool.filter(o => g.matchesAll(q, oilWords(o))).sort((a, b) => b.s.in - a.s.in);
         }
+        // Every shift on the dates picked, for each employee (the shifts loaded live only go back 60 days)
+        async function loadRange() {
+            const from = oilFrom, to = oilTo;
+            oilRange = { from, to, byEk: {}, loading: true, err: null };
+            render();
+            const [fy, fm, fdd] = from.split("-").map(Number), [ty, tm, td] = to.split("-").map(Number);
+            // a day either side, then each shift is matched by its own day
+            const start = new Date(fy, fm - 1, fdd - 1).getTime(), end = new Date(ty, tm - 1, td + 2).getTime();
+            try {
+                const byEk = {};
+                await Promise.all(Object.keys(employees).map(async k => {
+                    const s = await get(query(ref(db, P.shifts + "/" + k), orderByChild("in"), startAt(start), endAt(end)));
+                    byEk[k] = Object.entries(s.val() || {}).filter(([, v]) => v && typeof v.in === "number").map(([id, v]) => Object.assign({ id: id }, v));
+                }));
+                if (oilFrom !== from || oilTo !== to) return;
+                oilRange = { from, to, byEk, loading: false, err: null };
+            } catch (err) {
+                if (oilFrom !== from || oilTo !== to) return;
+                oilRange = { from, to, byEk: {}, loading: false, err: err };
+            }
+            render();
+        }
+        const rangeText = (from, to) => from === to ? fmtKey(from) : fmtKey(from) + " to " + fmtKey(to);
+        function setOilDates(from, to) {
+            oilFrom = from || ""; oilTo = from ? to || from : "";
+            $("oilDatesBtn").textContent = oilFrom ? rangeText(oilFrom, oilTo) : "Any dates";
+            $("oilDatesClear").hidden = !oilFrom;
+            oilRange = null;
+            if (oilFrom) loadRange(); else render();
+        }
+        $("probSearch").addEventListener("input", render);
+        $("oilSearch").addEventListener("input", render);
+        $("oilDatesClear").addEventListener("click", () => setOilDates(""));
+
+        function renderLook(d) {
+            $("lookVanCount").hidden = !d.openVans; $("lookVanCount").textContent = d.openVans;
+            $("lookOilCount").hidden = !d.openOils; $("lookOilCount").textContent = d.openOils;
+            if (!ready()) { $("lookVans").innerHTML = loadingHtml(); return; }
+            // Problems: the ones not cleared, or with a search, every one it finds
+            const pq = $("probSearch").value;
+            const probs = probSearching() ? d.vans.filter(r => g.matchesAll(pq, g.problemWords(r))) : d.vans.filter(r => !r.cleared);
+            const probCleared = probSearching() ? probs.filter(r => r.cleared).length : 0;
+            $("probNote").hidden = !probSearching();
+            $("probNote").textContent = probs.length + (probs.length === 1 ? " problem found" : " problems found") + (probCleared ? ", " + probCleared + " of them cleared. Tap a cleared one to bring it back." : ".");
+            $("lookVans").innerHTML = probs.slice(0, SEARCH_MAX).map(r => problemHtml(r, true)).join("") ||
+                empty(probSearching() ? "No problems match that search." : d.vans.length ? "Every problem has been cleared. Search finds them." : "No vehicle problems reported yet.");
+
+            // Oil checks: missed and on-the-clock first, checked ones after; with a search, every one it finds, newest first
+            const searching = oilSearching();
+            const found = searching ? oilFound(d) : null;
+            const list = searching ? found || [] : d.recent.filter(o => o.open || o.state === "waiting").concat(d.recent.filter(o => !o.open && o.state !== "waiting"));
+            $("oilClearAll").hidden = !list.some(o => !o.cleared && o.state !== "waiting");
+            $("oilNote").hidden = !searching;
+            if (searching) {
+                const where = oilFrom ? rangeText(oilFrom, oilTo) : "the last " + oilDays + " days (pick dates to look further back)";
+                const n = list.length, nc = list.filter(o => o.cleared).length;
+                $("oilNote").textContent = oilRange && oilRange.loading ? "Looking through " + where + "…"
+                    : oilRange && oilRange.err ? "Couldn't load " + where + ": " + errMsg(oilRange.err)
+                    : n + (n === 1 ? " oil check" : " oil checks") + " found in " + where + (nc ? ", " + nc + " of them cleared. Tap a cleared one to bring it back." : ".") +
+                        (n > SEARCH_MAX ? " Showing the newest " + SEARCH_MAX + "." : "");
+            }
+            $("lookOil").innerHTML = searching && !found ? loadingHtml() : list.slice(0, SEARCH_MAX).map(o => oilHtml(o, true)).join("") ||
+                empty(searching ? "No oil checks match that search." : loaded.employees ? "No oil checks to show. Cleared ones and older ones are found by search." : "Loading…");
+        }
+
+        // ---------- The date range calendar ----------
+        const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const FIRST_YEAR = 2024; // the time clock started saving shifts after this
+        let calY = 0, calM = 0, calRange = { from: "", to: "" };
+        function openCalendar() {
+            calRange = { from: oilFrom, to: oilTo };
+            const t = today().split("-").map(Number), start = (oilFrom || today()).split("-").map(Number);
+            calY = start[0]; calM = start[1] - 1;
+            $("calMonth").innerHTML = MONTHS.map((m, i) => '<option value="' + i + '">' + m + "</option>").join("");
+            const years = [];
+            for (let y = t[0]; y >= Math.min(FIRST_YEAR, calY); y--) years.push('<option value="' + y + '">' + y + "</option>");
+            $("calYear").innerHTML = years.join("");
+            renderCalendar();
+            openModal("calModal");
+        }
+        function renderCalendar() {
+            const t = today();
+            $("calMonth").value = String(calM); $("calYear").value = String(calY);
+            const [ty, tm] = t.split("-").map(Number);
+            $("calNext").disabled = calY > ty || (calY === ty && calM >= tm - 1);
+            $("calPrev").disabled = calY <= Number($("calYear").lastElementChild.value) && calM === 0;
+            const { from, to } = calRange;
+            $("calGrid").innerHTML = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => '<div class="cal-dow">' + d + "</div>").join("") +
+                g.monthWeeks(calY, calM).flat().map(k => {
+                    if (!k) return "<div></div>";
+                    const end = k === from || k === to, inside = from && to && k > from && k < to;
+                    return '<button type="button" class="cal-day' + (end ? " end" : inside ? " in" : "") + (k === t ? " today" : "") + '" data-calday="' + k + '"' +
+                        (k > t ? " disabled" : "") + ' aria-pressed="' + (end || !!inside) + '" aria-label="' + esc(fmtKey(k)) + '">' + Number(k.slice(8)) + "</button>";
+                }).join("");
+            $("calPick").textContent = !from ? "No dates picked: every date." : !to ? "From " + fmtKey(from) + ". Tap the last day, or Show these dates for just this day." : rangeText(from, to);
+        }
+        const calMove = n => { const d = new Date(calY, calM + n, 1); calY = d.getFullYear(); calM = d.getMonth(); renderCalendar(); };
+        $("calPrev").addEventListener("click", () => calMove(-1));
+        $("calNext").addEventListener("click", () => calMove(1));
+        $("calMonth").addEventListener("change", () => { calM = Number($("calMonth").value); renderCalendar(); });
+        $("calYear").addEventListener("change", () => { calY = Number($("calYear").value); renderCalendar(); });
+        $("calGrid").addEventListener("click", e => { const b = e.target.closest("[data-calday]"); if (b) { calRange = g.rangePick(calRange, b.dataset.calday); renderCalendar(); } });
+        $("calAny").addEventListener("click", () => { closeModal("calModal"); setOilDates(""); });
+        $("calOk").addEventListener("click", () => { closeModal("calModal"); setOilDates(calRange.from, calRange.to); });
+        $("oilDatesBtn").addEventListener("click", openCalendar);
+
+        // ---------- Mark as read, clear, bring back ----------
+        const mark = () => ({ at: serverTimestamp(), by: by() });
+        const findOil = id => { const d = lookData(); return d.oils.concat(oilRange && !oilRange.loading ? g.oilMarks(g.oilList(oilRange.byEk, 0, oilState, vanKey), oilCleared, oilShown) : []).find(o => oilId(o) === id); };
+        // Clearing a missed check nobody has read marks it as read too, so the tab doesn't count one that isn't on it
+        function oilClearWrites(u, o) {
+            const p = G.oilCleared + "/" + o.ek + "/" + o.s.id;
+            u[p] = mark(); u[G.oilShown + "/" + o.ek + "/" + o.s.id] = null;
+            if (o.open) { u[P.shifts + "/" + o.ek + "/" + o.s.id + "/oil/seenBy"] = by(); u[P.shifts + "/" + o.ek + "/" + o.s.id + "/oil/seenAt"] = serverTimestamp(); }
+            return u;
+        }
+        // Shifts from picked dates (and brought-back ones) aren't live, so a check marked as read is changed here too
+        const seenHere = list => list.forEach(o => { if (o.open) o.s.oil = Object.assign({}, o.s.oil, { seenBy: by(), seenAt: now() }); });
+        $("oilClearAll").addEventListener("click", async () => {
+            const d = lookData();
+            const list = (oilSearching() ? oilFound(d) || [] : d.recent).filter(o => !o.cleared && o.state !== "waiting");
+            if (!list.length) return;
+            const ok = await ask({ title: "Clear " + (list.length === 1 ? "this oil check" : "these " + list.length + " oil checks") + "?",
+                sub: "They come off this list" + (list.some(o => o.open) ? " and the missed ones are marked as read" : "") + ". Search still finds them, and tapping one brings it back. Drivers on the clock who haven't checked yet stay.",
+                ok: "Clear all", danger: true });
+            if (!ok) return;
+            const u = {};
+            list.forEach(o => oilClearWrites(u, o));
+            try { await write(u); seenHere(list); toast(list.length === 1 ? "Cleared." : list.length + " oil checks cleared."); }
+            catch (err) { toast("Couldn't clear them: " + errMsg(err), true); }
+        });
         document.addEventListener("click", async e => {
             const seen = e.target.closest("[data-oilseen]");
             if (seen) {
-                const [k, id] = seen.dataset.oilseen.split("|");
-                const o = lookData().oils.find(x => x.ek === k && x.s.id === id);
+                const o = findOil(seen.dataset.oilseen);
+                if (!o) return;
                 seen.disabled = true;
                 try {
-                    await write({ [P.shifts + "/" + k + "/" + id + "/oil/seenBy"]: by(), [P.shifts + "/" + k + "/" + id + "/oil/seenAt"]: serverTimestamp() },
-                        o && { vkey: o.vkey, text: "Missed oil check seen (" + empName(k) + ", " + fmtKey(dayKey(o.s.in)) + ")" });
-                    toast("Marked as seen.");
+                    await write({ [P.shifts + "/" + o.ek + "/" + o.s.id + "/oil/seenBy"]: by(), [P.shifts + "/" + o.ek + "/" + o.s.id + "/oil/seenAt"]: serverTimestamp() },
+                        { vkey: o.vkey, text: "Missed oil check read (" + empName(o.ek) + ", " + fmtKey(dayKey(o.s.in)) + ")" });
+                    seenHere([o]);
+                    toast("Marked as read.");
                 } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
                 seen.disabled = false;
+                return;
+            }
+            const oc = e.target.closest("[data-oilclear]");
+            if (oc) {
+                const o = findOil(oc.dataset.oilclear);
+                if (!o) return;
+                oc.disabled = true;
+                try { await write(oilClearWrites({}, o)); seenHere([o]); toast("Cleared. Search finds it again."); }
+                catch (err) { toast("Couldn't clear it: " + errMsg(err), true); oc.disabled = false; }
+                return;
+            }
+            // A cleared one (found by search): tapping it, or Bring back, puts it back on the tab, however old it is
+            const ob = e.target.closest("[data-oilback]");
+            if (ob && !(e.target.closest("button, a") && !e.target.closest("button[data-oilback]"))) {
+                const o = findOil(ob.dataset.oilback);
+                if (!o || !o.cleared) return;
+                const k = o.ek + "|" + o.s.id;
+                if (!shownShifts[k]) shownShifts[k] = o.s; // so it shows right away, even from older dates
+                try {
+                    await write({ [G.oilCleared + "/" + o.ek + "/" + o.s.id]: null, [G.oilShown + "/" + o.ek + "/" + o.s.id]: mark() });
+                    toast("Brought back: " + empName(o.ek) + ", " + fmtKey(dayKey(o.s.in)) + ".");
+                } catch (err) { toast("Couldn't bring it back: " + errMsg(err), true); }
+                return;
+            }
+            const vrd = e.target.closest("[data-vanread]");
+            if (vrd) {
+                const id = vrd.dataset.vanread;
+                if (!reports[id]) return;
+                vrd.disabled = true;
+                try { await write({ [G.problemReads + "/" + id]: mark() }); toast("Marked as read. It stays here until it's fixed."); }
+                catch (err) { toast("Couldn't save: " + errMsg(err), true); vrd.disabled = false; }
+                return;
+            }
+            const vc = e.target.closest("[data-vanclear]");
+            if (vc) {
+                const id = vc.dataset.vanclear, r = reports[id];
+                if (!r) return;
+                if (r.status === "open") { toast("Mark it fixed first. Only a fixed problem can be cleared.", true); return; }
+                vc.disabled = true;
+                try {
+                    await write({ [G.problemCleared + "/" + id]: mark() }, { vkey: vanKey(r.vehicleName || ""), text: "Fixed problem cleared from Vehicle checks: " + short(r.text, 80) });
+                    toast("Cleared. It stays on the vehicle's page, and search finds it.");
+                } catch (err) { toast("Couldn't clear it: " + errMsg(err), true); vc.disabled = false; }
+                return;
+            }
+            const vb = e.target.closest("[data-vanback]");
+            if (vb && !(e.target.closest("button, a") && !e.target.closest("button[data-vanback]"))) {
+                const id = vb.dataset.vanback, r = reports[id];
+                if (!r || !problemCleared[id]) return;
+                try {
+                    await write({ [G.problemCleared + "/" + id]: null }, { vkey: vanKey(r.vehicleName || ""), text: "Problem brought back to Vehicle checks: " + short(r.text, 80) });
+                    toast("Brought back.");
+                } catch (err) { toast("Couldn't bring it back: " + errMsg(err), true); }
                 return;
             }
             const vf = e.target.closest("[data-vanfixed]");
@@ -1168,7 +1468,7 @@
                 try {
                     await write({ [P.vanReports + "/" + id + "/status"]: "fixed", [P.vanReports + "/" + id + "/fixNote"]: note.trim().slice(0, g.MAX.fixNote), [P.vanReports + "/" + id + "/by"]: by(), [P.vanReports + "/" + id + "/doneAt"]: serverTimestamp() },
                         { vkey: vanKey(r.vehicleName || ""), text: "Problem fixed: " + short(r.text, 80) + (note.trim() ? " (" + note.trim() + ")" : "") });
-                    toast("Marked fixed. It stays in the list.");
+                    toast("Marked fixed. It stays in the list until it's cleared.");
                 } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
                 return;
             }
@@ -1180,7 +1480,7 @@
                 if (!r) return;
                 vr.disabled = true;
                 try {
-                    await write({ [P.vanReports + "/" + id + "/status"]: "open", [P.vanReports + "/" + id + "/fixNote"]: null, [P.vanReports + "/" + id + "/by"]: null, [P.vanReports + "/" + id + "/doneAt"]: null },
+                    await write({ [P.vanReports + "/" + id + "/status"]: "open", [P.vanReports + "/" + id + "/fixNote"]: null, [P.vanReports + "/" + id + "/by"]: null, [P.vanReports + "/" + id + "/doneAt"]: null, [G.problemCleared + "/" + id]: null },
                         { vkey: vanKey(r.vehicleName || ""), text: "Problem reopened: " + short(r.text, 80) + (r.by ? " (had been fixed by " + r.by.split("@")[0] + (r.fixNote ? ": " + r.fixNote : "") + ")" : "") });
                     toast("Reopened.");
                 } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
@@ -1387,8 +1687,8 @@
                 '<div class="oil-hist"><div class="label">Last ' + oilDays + " days</div>" +
                 (oils.length ? oils.map(o => '<div class="oil-line"><span>' + esc(fmtKey(dayKey(o.s.in))) + " · " + esc(empName(o.ek)) + "</span>" +
                     (o.state === "checked" ? '<span class="tag live">Checked ' + esc(fmtTime(o.s.oil.at)) + "</span>" : o.state === "waiting" ? '<span class="tag warn">Not checked yet</span>'
-                        : o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Got it</button>'
-                        : '<span class="tag" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · seen" : "") + "</span>") + "</div>").join("")
+                        : o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Mark as read</button>'
+                        : '<span class="tag" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · read" : "") + "</span>") + "</div>").join("")
                     : '<p class="hint" style="margin-top:6px">' + (loaded.employees ? "No oil checks on shifts in this vehicle." : "Loading…") + "</p>") +
                 '<button type="button" class="btn sm ghost" data-oil-older style="margin-top:8px">Show older</button></div></div>';
 

@@ -22,9 +22,16 @@ One page for everything we know about each vehicle:
 - **Vehicle problems:** the reports drivers send from **Vehicle Check** on the time clock, plus
   any an admin adds with **+ Add problem**. **Mark fixed** saves a note, who fixed it and when;
   fixed problems stay on the vehicle and on the **Vehicle checks** tab, and **Reopen** opens one again.
+  A new problem counts on the Vehicle checks tab until someone taps **Mark as read** (it stays open until it's fixed).
+  On the Vehicle checks tab, **Clear** takes a problem off the list, but only once it's marked fixed; it stays on the
+  vehicle's own page. The search box finds problems by what's wrong, the vehicle, the driver or the fix, cleared ones
+  too, and tapping a cleared one brings it back.
 - **Oil checks:** each vehicle's last check and its checks from the last 60 days (**Show older**
   goes back 90 days more each time). The **Vehicle checks** tab lists the last two weeks across
-  all vehicles; a missed one waits for **Got it**. Drivers on the clock who haven't checked yet show too.
+  all vehicles; a missed one counts on the tab until **Mark as read**. Drivers on the clock who haven't checked yet
+  show too. **Clear** (or **Clear all**) takes checks off the tab (a missed one is marked as read too). The search
+  box finds checks by driver, vehicle or day in the last 60 days, cleared ones too; the dates button opens a calendar
+  for any month to search a range of days instead. Tapping a cleared check brings it back to the tab, however old.
 - **Oil check schedule:** how often drivers are asked to check each vehicle's oil (moved here
   from the time clock admin panel), on the **Oil schedule** tab or on each vehicle.
 - **Edit history:** a problem (what's wrong, and what was done to fix it), an info entry, a service log
@@ -82,10 +89,14 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 | `garage/trash/{id}` | `{ at, by, kind, vkey, vname, id, data }`, deleted after 30 days | Garage |
 | `garage/problem_edits/{reportId}/{editId}` | `{ at, by, was: { text, fixNote } }`: each edit of a problem in `timeclock/van_reports`; the newest 20 | Garage |
 | `garage/history/{key}/{id}` | `{ at, by, text }` (`_all`: changes for every vehicle) | Garage |
+| `garage/problem_reads/{reportId}` | `{ at, by }`: a problem marked as read | Garage |
+| `garage/problem_cleared/{reportId}` | `{ at, by }`: a fixed problem cleared from the Vehicle checks tab (the rules refuse an open one) | Garage |
+| `garage/oil_cleared/{ek}/{shiftId}` | `{ at, by }`: an oil check cleared from the Vehicle checks tab | Garage |
+| `garage/oil_shown/{ek}/{shiftId}` | `{ at, by }`: a cleared oil check brought back from search | Garage |
 | `timeclock/vans` | The time clock's vans without GPS (Garage's vehicle list) | Admin panel |
 | `developer/dispatch_dashboard/drivers` | The RouteWatcher vehicles (GPS), read only (Garage's vehicle list) | RouteWatcher |
 | `timeclock/van_reports` | Vehicle Check reports | Drivers and Garage; Garage marks them fixed, reopens them and edits `text` and `fixNote` |
-| `timeclock/shifts/{ek}/{id}/oil` | The oil check on each shift | Drivers; Garage marks a missed one as seen |
+| `timeclock/shifts/{ek}/{id}/oil` | The oil check on each shift | Drivers; Garage marks a missed one as read (`seenBy`, `seenAt`) |
 | `timeclock/oil_plan`, `timeclock/oil_last` | The oil check schedule and each vehicle's last check | Garage (schedule), drivers (last check) |
 
 `{key}` is the vehicle's name in lower case with only letters and digits, and "van" or

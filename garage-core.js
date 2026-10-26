@@ -20,6 +20,10 @@
 //       odo                                        { km, day, at, by }  the last km reading someone entered
 //   garage/trash/{id}                            { at, by, kind, vkey, vname, id, data }  deleted things, kept 30 days
 //   garage/history/{vkey}/{id}                   { at, by, text }  what changed on each vehicle ("_all": all vehicles)
+//   garage/problem_reads/{reportId}              { at, by }  a problem marked as read: it no longer counts on the tab
+//   garage/problem_cleared/{reportId}            { at, by }  a fixed problem taken off the Vehicle checks tab
+//   garage/oil_cleared/{ek}/{shiftId}            { at, by }  an oil check taken off the Vehicle checks tab
+//   garage/oil_shown/{ek}/{shiftId}              { at, by }  a cleared oil check brought back from search (shows even when older)
 //   (added/addedBy: who first saved it and when; at/by: the last change)
 // Read from the time clock:
 //   timeclock/vans/{id}                          the time clock's vans (Admin → Vehicles → Vehicles without GPS)
@@ -201,6 +205,57 @@ export function oilList(shiftsByEk, since, oilState, keyOf) {
         }
     }
     return out.sort((a, b) => (b.state === "waiting") - (a.state === "waiting") || b.s.in - a.s.in);
+}
+
+// ---------- The Vehicle checks tab: read, cleared and search ----------
+// Problems with read (marked as read, so it no longer counts on the tab) and cleared (taken off the tab).
+// Only a fixed problem can be cleared: a reopened one shows again even if its cleared mark is still there.
+export function problemMarks(list, reads, cleared) {
+    return list.map(r => Object.assign({}, r, { read: !!(reads && reads[r.id]), cleared: r.status !== "open" && !!(cleared && cleared[r.id]) }));
+}
+// The ones that count on the tab: open and not read yet
+export const problemUnread = r => r.status === "open" && !r.read;
+// Oil checks (oilList() output) with cleared, and shown (brought back from search)
+export function oilMarks(list, cleared, shown) {
+    const has = (m, o) => !!(m && m[o.ek] && m[o.ek][o.s.id]);
+    return list.map(o => Object.assign({}, o, { cleared: has(cleared, o), shown: has(shown, o) }));
+}
+// Shifts by employee from several places, each shift once (the first one found wins)
+export function mergeShifts(...maps) {
+    const out = {};
+    for (const m of maps) for (const [ek, list] of Object.entries(m || {})) {
+        const have = new Set((out[ek] || []).map(s => s.id));
+        out[ek] = (out[ek] || []).concat((list || []).filter(s => s && !have.has(s.id)));
+    }
+    return out;
+}
+// Every word typed has to be in one of the texts
+export function matchesAll(q, texts) {
+    const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
+    const hay = texts.filter(t => t !== undefined && t !== null && t !== "").join(" ").toLowerCase();
+    return words.every(w => hay.includes(w));
+}
+export const problemWords = r => [r.text, r.vehicleName, r.vehicleName ? "van " + r.vehicleName : "", r.name, r.fixNote, r.by, r.status === "open" ? "open" : "fixed"];
+
+// ---------- The date range calendar ----------
+const pad2 = n => String(n).padStart(2, "0");
+export const dayOf = (y, m, d) => y + "-" + pad2(m + 1) + "-" + pad2(d); // m: 0 is January
+// A month's weeks, Monday first, with null before the 1st and after the last day
+export function monthWeeks(y, m) {
+    const lead = (new Date(Date.UTC(y, m, 1)).getUTCDay() + 6) % 7;
+    const n = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const cells = Array(lead).fill(null);
+    for (let d = 1; d <= n; d++) cells.push(dayOf(y, m, d));
+    while (cells.length % 7) cells.push(null);
+    const weeks = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    return weeks;
+}
+// Tapping a day: the first tap picks the start, the second the end (an earlier day swaps them), a third starts again
+export function rangePick(range, day) {
+    const from = range && range.from, to = range && range.to;
+    if (!from || to) return { from: day, to: "" };
+    return day < from ? { from: day, to: from } : { from: from, to: day };
 }
 
 // A vehicle's entries grouped by category, in category order. Entries whose category was deleted go under "Other".

@@ -318,6 +318,68 @@
           }
         }
       },
+      "problem_reads": {
+        "$rid": {
+          ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at'])",
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "by": {
+            ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "problem_cleared": {
+        "$rid": {
+          ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at']) && newData.parent().parent().parent().child('timeclock/van_reports/' + $rid + '/text').exists() && newData.parent().parent().parent().child('timeclock/van_reports/' + $rid + '/status').val() !== 'open'",
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "by": {
+            ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "oil_cleared": {
+        "$ek": {
+          ".validate": "$ek.length <= 200 && newData.hasChildren()",
+          "$sid": {
+            ".validate": "$sid.length <= 128 && newData.hasChildren(['at'])",
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "by": {
+              ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "oil_shown": {
+        "$ek": {
+          ".validate": "$ek.length <= 200 && newData.hasChildren()",
+          "$sid": {
+            ".validate": "$sid.length <= 128 && newData.hasChildren(['at'])",
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "by": {
+              ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
       "$other": {
         ".validate": false
       }
