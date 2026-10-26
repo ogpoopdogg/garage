@@ -8,6 +8,7 @@ import {
   stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS
 } from '../garage-core.js';
 import { editKeys, editWas, editList, editDrops, withEdit, ITEM_KEYS, SERVICE_KEYS, PROBLEM_KEYS, EDITS_MAX } from '../garage-core.js';
+import { problemMarks, problemUnread, oilMarks, mergeShifts, matchesAll, problemWords, monthWeeks, rangePick, dayOf } from '../garage-core.js';
 import { categoryFields, cleanFields, fieldsText, fieldNames, entryFields, entryTitle, hasContent } from '../garage-core.js';
 
 // The time clock's vanKey (timeclock/tc-core.js): "Van 12", "van12" and "12" are the same vehicle
@@ -263,4 +264,34 @@ test('entries in a category with only a Model number field', () => {
   const rows = csvRows(vehicles, { 12: { items: { a: { cat: 'm', value: 'B2', extra: { xC: 'white' } } } } }, cats, [], String);
   assert.strictEqual(rows[1][rows[0].indexOf('Other fields')], 'Colour: white');
   assert.ok(fields.length === 6);
+});
+
+test('Vehicle checks: read and cleared problems; only a fixed one counts as cleared', () => {
+  const list = reportList({ a: { at: 1, text: 'Light out', status: 'open', vehicleName: '12' }, b: { at: 2, text: 'Wiper', status: 'fixed', vehicleName: '3' }, c: { at: 3, text: 'Mirror', status: 'open' } }, vanKey);
+  const m = problemMarks(list, { a: { at: 5 } }, { b: { at: 6 }, c: { at: 6 } });
+  assert.deepStrictEqual(m.map(r => [r.id, r.read, r.cleared, problemUnread(r)]), [['c', false, false, true], ['a', true, false, false], ['b', false, true, false]]);
+  assert.ok(matchesAll('van 12 light', problemWords(m[1])));
+  assert.ok(!matchesAll('light 3', problemWords(m[1])));
+  assert.ok(matchesAll('', []));
+});
+
+test('Vehicle checks: cleared and brought-back oil checks; shifts merged once each', () => {
+  const s = { id: 's1', in: 100 };
+  const o = oilMarks([{ ek: 'matt@ec,com', s: s }, { ek: 'dave@ec,com', s: { id: 's1', in: 100 } }], { 'matt@ec,com': { s1: { at: 1 } } }, { 'dave@ec,com': { s1: { at: 2 } } });
+  assert.deepStrictEqual(o.map(x => [x.ek, x.cleared, x.shown]), [['matt@ec,com', true, false], ['dave@ec,com', false, true]]);
+  const merged = mergeShifts({ a: [s] }, { a: [{ id: 's1', in: 1 }, { id: 's2', in: 2 }], b: [{ id: 's3', in: 3 }] });
+  assert.deepStrictEqual(Object.fromEntries(Object.entries(merged).map(([k, l]) => [k, l.map(x => x.id + ':' + x.in)])), { a: ['s1:100', 's2:2'], b: ['s3:3'] });
+});
+
+test('calendar: weeks start on Monday; first tap starts, second ends, an earlier day swaps', () => {
+  const w = monthWeeks(2026, 9); // October 2026 starts on a Thursday
+  assert.deepStrictEqual(w[0], [null, null, null, '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
+  assert.strictEqual(w[w.length - 1].filter(Boolean).pop(), '2026-10-31');
+  assert.strictEqual(monthWeeks(2024, 1).flat().filter(Boolean).length, 29);
+  assert.strictEqual(dayOf(2026, 0, 5), '2026-01-05');
+  let r = rangePick({ from: '', to: '' }, '2026-10-10');
+  assert.deepStrictEqual(r, { from: '2026-10-10', to: '' });
+  assert.deepStrictEqual(rangePick(r, '2026-10-20'), { from: '2026-10-10', to: '2026-10-20' });
+  assert.deepStrictEqual(rangePick(r, '2026-09-01'), { from: '2026-09-01', to: '2026-10-10' });
+  assert.deepStrictEqual(rangePick({ from: '2026-10-10', to: '2026-10-20' }, '2026-10-15'), { from: '2026-10-15', to: '' });
 });

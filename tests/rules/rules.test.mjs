@@ -163,3 +163,26 @@ test('trash and the change history: admins only, and only what Garage saves', as
   await assertFails(matt.ref('garage/trash').once('value'));
   await assertFails(matt.ref('garage/history/12/h3').set({ at: 1, text: 'x' }));
 });
+
+test('read and cleared marks: a problem can only be cleared once it\'s fixed; oil checks by employee and shift', async () => {
+  await env.withSecurityRulesDisabled(ctx => ctx.database().ref('timeclock/van_reports').set({
+    open1: { at: 1, text: 'Light out', status: 'open' }, fixed1: { at: 1, text: 'Wiper', status: 'fixed' }
+  }));
+  const db = admin();
+  const m = { at: 5, by: 'desirae@ec.com' };
+  await assertSucceeds(db.ref('garage/problem_reads/open1').set(m));
+  await assertSucceeds(db.ref('garage/problem_cleared/fixed1').set(m));
+  await assertFails(db.ref('garage/problem_cleared/open1').set(m));
+  await assertFails(db.ref('garage/problem_cleared/nope').set(m));
+  await assertSucceeds(db.ref('garage/problem_cleared/fixed1').remove());
+  await assertFails(db.ref('garage/problem_reads/open1').set({ by: 'x' }));
+  await assertFails(db.ref('garage/problem_reads/open1').set({ at: 5, why: 'x' }));
+  await assertFails(db.ref('garage/problem_reads/bad id').set(m));
+  await assertSucceeds(db.ref('garage/oil_cleared/matt@ec,com/-Nshift_1').set(m));
+  await assertSucceeds(db.ref('garage/oil_shown/matt@ec,com/-Nshift_2').set(m));
+  await assertFails(db.ref('garage/oil_cleared/matt@ec,com/-Nshift_1').set({ at: 'today' }));
+  await assertFails(db.ref('garage/oil_shown/matt@ec,com').set(true));
+  const matt = as('matt@ec.com');
+  await assertFails(matt.ref('garage/problem_reads/open1').set(m));
+  await assertFails(matt.ref('garage/oil_cleared').once('value'));
+});
