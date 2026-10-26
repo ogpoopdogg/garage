@@ -613,20 +613,20 @@ export function vehicleSummary(s, cats) {
 const PLATE_RE = /\b(plates?|licen[cs]e)\b/i, VIN_RE = /\bvin\b/i;
 export const isPlate = t => PLATE_RE.test(String(t || "")) && !VIN_RE.test(String(t || ""));
 
-// The parts that can be sent, in order: [{ key, name, on }] (on: checked to start with). "c:" + id is a category,
-// "c:" alone the Other group (entries whose category was deleted), there when other is true.
-export function aiParts(cats, other) {
+// The parts that can be sent, in order: [{ key, name, on, group, at }] (on: checked to start with). "c:" + id is a
+// category, "c:" alone the Other group (entries whose category was deleted), there when other is true. Each problem
+// (problems: reportList() for this vehicle) is "p:" + its id, with group "open" or "fixed" and at (when reported).
+export function aiParts(cats, other, problems) {
+    const prob = (list, group) => list.map(p => ({ key: "p:" + p.id, name: String(p.text).replace(/\s+/g, " "), on: true, group: group, at: p.at }));
+    const ps = problems || [];
     return [{ key: "km", name: "Km", on: true }]
         .concat((cats || []).map(c => ({ key: "c:" + c.id, name: c.name, on: true })), other ? [{ key: "c:", name: "Other", on: true }] : [])
-        .concat([
-            { key: "plate", name: "Licence plate", on: false },
-            { key: "open", name: "Open problems", on: true },
-            { key: "fixed", name: "Fixed problems", on: true },
-            { key: "service", name: "Service log", on: true },
-            { key: "reminders", name: "Service due", on: true },
-            { key: "oil", name: "Oil checks", on: true }
-        ]);
+        .concat([{ key: "plate", name: "Licence plate", on: false }],
+            prob(ps.filter(p => p.status === "open"), "open"), prob(ps.filter(p => p.status !== "open"), "fixed"),
+            [{ key: "service", name: "Service log", on: true }, { key: "reminders", name: "Service due", on: true }, { key: "oil", name: "Oil checks", on: true }]);
 }
+// The two groups the problems are in
+export const AI_GROUPS = { open: "Open problems", fixed: "Fixed problems" };
 
 // Questions to start from
 export const AI_QUESTIONS = [
@@ -679,9 +679,9 @@ export function aiText(o) {
         }
         section(gr.cat.name.toUpperCase(), lines);
     }
-    const probs = o.problems || [];
-    if (pick("open")) section("OPEN PROBLEMS (reported by drivers or the office)", probs.filter(p => p.status === "open").map(p => "- " + day(p.at) + ": " + p.text.replace(/\s+/g, " ")));
-    if (pick("fixed")) section("FIXED PROBLEMS", probs.filter(p => p.status !== "open").map(p => "- " + day(p.at) + ": " + p.text.replace(/\s+/g, " ") +
+    const probs = (o.problems || []).filter(p => pick("p:" + p.id));
+    section("OPEN PROBLEMS (reported by drivers or the office)", probs.filter(p => p.status === "open").map(p => "- " + day(p.at) + ": " + p.text.replace(/\s+/g, " ")));
+    section("FIXED PROBLEMS", probs.filter(p => p.status !== "open").map(p => "- " + day(p.at) + ": " + p.text.replace(/\s+/g, " ") +
         " | fixed" + (p.doneAt ? " " + day(p.doneAt) : "") + (p.fixNote ? ": " + p.fixNote.replace(/\s+/g, " ") : "")));
     if (pick("service")) section("SERVICE LOG (newest first)", serviceList(s.service).map(e => "- " + [e.day + ": " + e.what,
         typeof e.km === "number" ? fmtKm(e.km) : "", typeof e.cost === "number" ? fmtMoney(e.cost) : "", e.note ? e.note.replace(/\s+/g, " ") : ""].filter(Boolean).join("; ")));

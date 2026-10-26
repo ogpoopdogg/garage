@@ -346,7 +346,9 @@ test('Ask AI: the text has the question, the checked parts, the VIN, no plate an
   ];
   const oils = [{ state: 'checked' }, { state: 'checked' }, { state: 'missed' }];
   const base = { question: 'Why do the brakes squeal?', name: 'Van 3', s, cats, problems, oils, oilLast: { at: 9 }, oilDays: 30, today: '2026-10-26', day: t => '2026-10-0' + t };
-  const all = new Set(aiParts(cats, true).filter(p => p.on).map(p => p.key));
+  const parts = aiParts(cats, true, problems);
+  assert.deepStrictEqual(parts.filter(p => p.group).map(p => [p.key, p.group, p.name]), [['p:1', 'open', 'Brakes squeal'], ['p:2', 'fixed', 'Wiper torn']]);
+  const all = new Set(parts.filter(p => p.on).map(p => p.key));
   const t = aiText(Object.assign({ pick: all }, base));
   assert.ok(t.startsWith('Why do the brakes squeal?\n'));
   for (const want of ['VEHICLE: Van 3', 'VEHICLE\n- Year: 2019; Make: Ford; Model: Transit', 'Km: 182,400 km (read on 2026-10-20)', '- Headlight: H11; Part number: H11LL; Note: Both sides same',
@@ -360,5 +362,8 @@ test('Ask AI: the text has the question, the checked parts, the VIN, no plate an
   assert.ok(few.includes('VIN: 1FTYR2CM5KKA12345'));
   for (const no of ['Km:', 'Headlight', 'Year: 2019', 'PROBLEMS', 'SERVICE', 'OIL', 'OTHER']) assert.ok(!few.includes(no), no);
   assert.ok(few.startsWith("Tell me what's useful"));
+  // one problem on its own
+  const one = aiText(Object.assign({}, base, { pick: new Set(['p:2']) }));
+  assert.ok(one.includes('FIXED PROBLEMS') && one.includes('Wiper torn') && !one.includes('Brakes') && !one.includes('OPEN PROBLEMS'));
   assert.deepStrictEqual(AI_TARGETS.map(x => x.name), ['Gemini', 'ChatGPT', 'Claude']);
 });
