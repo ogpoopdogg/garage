@@ -185,6 +185,7 @@ export function shiftVehicle(s) {
 
 // Why a shift that's over has no oil check (the same wording the admin panel used)
 export function oilMissWhy(s) {
+    if (s.oil && s.oil.done === false && s.oil.how === "swap") return "Said when handing off vehicle " + (s.oil.vehicle || "") + " they didn't check it";
     if (s.oil && s.oil.done === false) return "Said at punch out they didn't check it";
     if (typeof s.outTap !== "number" && (s.src === "admin" || s.edited)) return "Punched out by the office, so they weren't asked";
     return "Didn't answer at punch out";
@@ -200,7 +201,8 @@ export function oilList(shiftsByEk, since, oilState, keyOf) {
             if (!s || typeof s.in !== "number" || s.in < since) continue;
             const st = oilState(s);
             if (st === "none" || st === "notdue") continue;
-            const v = shiftVehicle(s);
+            // A driver asked at a vehicle swap answered for the vehicle they handed off (oil.how "swap", oil.vehicle)
+            const v = s.oil && s.oil.how === "swap" && typeof s.oil.vehicle === "string" && s.oil.vehicle ? { id: "", name: s.oil.vehicle } : shiftVehicle(s);
             out.push({ ek: ek, s: s, state: st, open: st === "missed" && !(s.oil && s.oil.seenBy), vkey: keyOf(v.name), vname: v.name });
         }
     }

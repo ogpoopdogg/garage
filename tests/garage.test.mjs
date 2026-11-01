@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 // Helpers in garage-core.js. Run with: node --test tests/garage.test.mjs
 import {
-  defaultCategories, sortCategories, garageVehicles, reportList, oilList, shiftVehicle,
+  defaultCategories, sortCategories, garageVehicles, reportList, oilList, shiftVehicle, oilMissWhy,
   itemGroups, serviceList, searchGarage, cleanItem, cleanService, cleanLink,
   addMonths, daysBetween, currentKm, reminderState, reminderList, serviceDue, cleanReminder, nextReminder, cleanOdo,
   stamps, trashList, trashExpired, restoreWrites, toCsv, csvRows, TRASH_DAYS
@@ -66,6 +66,18 @@ test('oil checks: by vehicle, missed ones are open until seen, not-due ones left
     ['d1', 'waiting', false, '3'], ['s3', 'missed', false, '12'], ['s2', 'missed', true, '12'], ['s1', 'checked', false, '12']
   ]);
   assert.deepStrictEqual(shiftVehicle({ vans: { a: { at: 2, vehicleId: 'g3', vehicleName: '3' }, b: { at: 1, vehicleId: 'g9', vehicleName: '9' } } }), { id: 'g3', name: '3' });
+});
+
+test('oil check answered at a vehicle swap: listed under the vehicle handed off', () => {
+  const oilState = s => s.oil && s.oil.done ? 'checked' : typeof s.out === 'number' ? 'missed' : 'waiting';
+  const shifts = { 'matt@ec,com': [
+    { id: 'h1', in: 100, out: 900, vehicleId: 'g9', vehicleName: '9', oil: { done: false, at: 300, how: 'swap', vehicle: '12' } },
+    { id: 'h2', in: 1000, vehicleId: 'g9', vehicleName: '9', oil: { done: true, at: 1100, how: 'swap', vehicle: '12' } }
+  ] };
+  const o = oilList(shifts, 50, oilState, vanKey);
+  assert.deepStrictEqual(o.map(x => [x.s.id, x.state, x.vkey]), [['h2', 'checked', '12'], ['h1', 'missed', '12']]);
+  assert.strictEqual(oilMissWhy(shifts['matt@ec,com'][0]), "Said when handing off vehicle 12 they didn't check it");
+  assert.strictEqual(oilMissWhy({ in: 1, out: 2, outTap: 2, oil: { done: false, at: 2, how: 'out' } }), "Said at punch out they didn't check it");
 });
 
 test('entries grouped by category; a deleted category\'s entries go under Other', () => {
