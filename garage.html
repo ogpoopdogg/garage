@@ -1284,7 +1284,7 @@
             const s = o.s;
             const what = o.state === "checked" ? "Oil checked" : o.state === "waiting" ? "Not checked yet" : "Oil not checked";
             const detail = (withVehicle && o.vname ? "Vehicle " + vehicleLink(o.vkey, o.vname) + " · " : "") + (o.state === "waiting" ? "On the clock since " + esc(fmtTime(s.in))
-                : o.state === "checked" ? (s.oil.how === "out" ? "Said so at punch out, " : "Ticked the box, ") + esc(fmtTime(s.oil.at))
+                : o.state === "checked" ? (s.oil.how === "out" ? "Said so at punch out, " : s.oil.how === "swap" ? "Said so when handing off the vehicle, " : "Ticked the box, ") + esc(fmtTime(s.oil.at))
                 : esc(g.oilMissWhy(s)));
             const cleared = o.cleared;
             return '<div class="entry' + (cleared ? " cleared" : o.state === "waiting" ? " waiting" : o.open ? "" : " done") + '"' + (cleared ? ' data-oilback="' + esc(oilId(o)) + '" title="Tap to bring it back"' : "") +
