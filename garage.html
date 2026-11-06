@@ -418,7 +418,7 @@
     <main class="wrap gate" id="gateScreen" hidden>
         <form class="gate-card" id="gateForm" novalidate>
             <h1 id="gateTitle">Garage sign in</h1>
-            <p class="sub" id="gateSub">For the time clock admins. Use the same sign-in as the admin panel.</p>
+            <p class="sub" id="gateSub">For E&amp;C staff. Use the same sign-in as the other staff tools.</p>
             <div id="gateFields">
                 <label class="label" for="gEmail">Email</label>
                 <input class="input" id="gEmail" name="email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" style="margin-top:6px">
@@ -460,7 +460,7 @@
         <!-- Vehicles -->
         <section class="panel" id="panel-vehicles" role="tabpanel">
             <div class="panel-head">
-                <div><h1 class="panel-title">Vehicles</h1><p class="panel-sub">Everything we know about each vehicle: parts, problems, oil checks and service.</p></div>
+                <div><h1 class="panel-title">Vehicles</h1><p class="panel-sub" id="vehiclesSub">Everything we know about each vehicle: parts, problems, oil checks and service.</p></div>
                 <div class="panel-actions">
                     <button type="button" class="btn" id="exportBtn">Export spreadsheet</button>
                     <button type="button" class="btn primary" id="addVehicleBtn">+ Add vehicle</button>
@@ -730,11 +730,11 @@
         const OIL_DAYS = 60;      // a vehicle's page shows the oil checks from the last 60 days (Show older adds 90 more)
         const HIST_FIRST = 10, HIST_MORE = 20; // a Changes list shows the newest 10, and Show more adds 20 at a time
         const LOOK_DAYS = 14;     // the Vehicle checks tab shows the last two weeks of oil checks, like the admin Inbox did
-        const NEED = ["cats", "garage", "vans", "reports"]; // what has to load before a vehicle can be found
+        const NEED = ["cats", "garage", "vans", "reports"]; // what has to load before a vehicle can be found (staff: not the reports)
         const SNAP = "garage_saved_copy_v1";                 // localStorage: the last data seen, for opening with no signal
 
         // ---------- State ----------
-        let user = null, serverOffset = 0, unsubs = [], shiftUnsubs = {}, histUnsub = null, histKey = null;
+        let user = null, role = null, serverOffset = 0, unsubs = [], shiftUnsubs = {}, histUnsub = null, histKey = null;
         let problemReads = {}, problemCleared = {}, oilCleared = {}, oilShown = {}, shownShifts = {};
         let cats = [], catsRaw = null, stored = {}, reports = {}, problemEdits = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {}, trash = {}, history = [];
         let gpsRaw = null, vansRaw = {}, vehicles = [];
@@ -742,7 +742,8 @@
         let oilDays = OIL_DAYS, filter = "all", histShown = HIST_FIRST, purged = false;
         let view = "vehicles";    // a tab name, or "v:" + vehicle key
         const now = () => Date.now() + serverOffset;
-        const liveReady = () => NEED.every(k => loaded[k]);
+        const isAdmin = () => role === "admin";
+        const liveReady = () => NEED.every(k => loaded[k] || (k === "reports" && !isAdmin()));
         const ready = () => liveReady() || savedCopyAt > 0;
         // No signal: Firebase says it's not connected, and it isn't just starting up
         const offline = () => !!user && !connected && (everConnected || Date.now() - signedInAt > 4000);
@@ -828,13 +829,12 @@
         let askCheck = null;
         $("askForm").addEventListener("submit", e => { e.preventDefault(); if (askCheck) askCheck(); });
 
-        // ---------- Sign in (admins only, the same accounts as the time clock admin panel) ----------
+        // ---------- Sign in (staff: the time clock admins, and the accounts marked staff in the database) ----------
         $("gateForm").addEventListener("submit", async e => {
             e.preventDefault();
             const msg = $("gateMsg"), btn = $("gateBtn");
             const email = $("gEmail").value.trim(), pass = $("gPass").value;
             if (!email || !pass) { msg.textContent = "Enter your email and password."; return; }
-            if (!isAdminEmail(email)) { reportFailedSignIn(email, { code: "app/not-admin-email" }, "garage"); msg.textContent = "Only the time clock admins can open the garage."; return; }
             msg.textContent = ""; btn.disabled = true; btn.textContent = "Signing in…";
             try { await signInWithEmailAndPassword(auth, email, pass); }
             catch (err) { reportFailedSignIn(email, err, "garage"); msg.textContent = AUTH_MESSAGES[err && err.code] || "Sign-in failed. Please try again."; $("gPass").value = ""; }
@@ -859,28 +859,59 @@
             stopAll();
             clearData();
             user = u;
+            role = null;
             if (!u) {
                 $("gateTitle").textContent = "Garage sign in";
-                $("gateSub").textContent = "For the time clock admins. Use the same sign-in as the admin panel.";
+                $("gateSub").textContent = "For E&C staff. Use the same sign-in as the other staff tools.";
                 $("gateFields").hidden = false; $("gateSwitch").hidden = true; $("gateMsg").textContent = "";
                 show("gateScreen");
                 return;
             }
-            if (!isAdminEmail(u.email)) {
-                reportRefusedSignIn(u, "Not a time clock admin", "garage");
-                $("gateTitle").textContent = "Admins only";
-                $("gateSub").textContent = "You're signed in as " + u.email + ". Only the time clock admins can open the garage.";
+            if (isAdminEmail(u.email)) { role = "admin"; openApp(u); return; }
+            // Everyone else needs staff/{uid} to be true (the flag the other staff tools check; the rules check it too).
+            // With no signal, a staff member who opened Garage on this device before gets the saved copy.
+            const refuse = () => {
+                reportRefusedSignIn(u, "Not staff", "garage");
+                $("gateTitle").textContent = "Staff only";
+                $("gateSub").textContent = "You're signed in as " + u.email + ". Only E&C staff can open the garage. Ask an admin if you should have access.";
                 $("gateFields").hidden = true; $("gateSwitch").hidden = false;
                 show("gateScreen");
-                return;
-            }
+            };
+            const asked = u;
+            get(ref(db, "staff/" + u.uid)).then(s => {
+                if (user !== asked) return;
+                if (s.val() === true) { role = "staff"; openApp(u); } else refuse();
+            }).catch(err => {
+                if (user !== asked) return;
+                if (/permission/i.test(String(err && (err.code + " " + err.message)))) { refuse(); return; }
+                if (savedRole(u.email) === "staff") { role = "staff"; openApp(u); return; }
+                $("gateTitle").textContent = "Couldn't check your account";
+                $("gateSub").textContent = "Check your connection and try again. " + errMsg(err);
+                $("gateFields").hidden = true; $("gateSwitch").hidden = false;
+                show("gateScreen");
+            });
+            $("gateTitle").textContent = "Signing in…"; $("gateSub").textContent = ""; $("gateFields").hidden = true; $("gateSwitch").hidden = true; $("gateMsg").textContent = "";
+            show("gateScreen");
+        });
+
+        function openApp(u) {
+            applyRole();
             show("appScreen");
             signedInAt = Date.now();
             loadCopy(u.email);
             startAll();
             setTimeout(render, 4100); // shows the no-signal note if Firebase still hasn't connected
             render();
-        });
+        }
+        // Staff get the vehicle records: info and parts, service, reminders, km, the Trash for those, and the Changes.
+        // Vehicle checks, the oil schedule, categories, and adding or removing vehicles stay with the admins.
+        function applyRole() {
+            const a = isAdmin();
+            document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"]').forEach(b => { b.hidden = !a; });
+            $("addVehicleBtn").hidden = !a;
+            $("vehiclesSub").textContent = a ? "Everything we know about each vehicle: parts, problems, oil checks and service." : "Everything we know about each vehicle: parts, service and reminders.";
+            fromHash(); // the tab in the address again, now that it's known which tabs this person has
+        }
 
         function startAll() {
             const sub = (name, r, cb) => unsubs.push(onValue(r, s => { loaded[name] = true; cb(s); saveCopySoon(); render(); }, err => {
@@ -892,11 +923,16 @@
             sub("cats", ref(db, G.cats), s => {
                 catsRaw = s.val();
                 // The first time, start with the usual sections; they can be renamed or deleted after
-                if (!s.exists()) update(ref(db), { [G.cats]: g.defaultCategories() }).catch(err => toast("Couldn't add the starting categories: " + errMsg(err), true));
+                if (!s.exists() && isAdmin()) update(ref(db), { [G.cats]: g.defaultCategories() }).catch(err => toast("Couldn't add the starting categories: " + errMsg(err), true));
                 cats = g.sortCategories(catsRaw);
             });
             sub("garage", ref(db, G.vehicles), s => { stored = s.val() || {}; syncVehicles(); });
             sub("vans", ref(db, P.vans), s => { vansRaw = s.val() || {}; syncVehicles(); });
+            sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
+            if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); saveCopySoon(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
+            syncHistory();
+            // The rest is the time clock's Vehicle checks and oil checks (every driver's shifts): admins only
+            if (!isAdmin()) return;
             sub("reports", ref(db, P.vanReports), s => { reports = s.val() || {}; });
             sub("problemEdits", ref(db, G.problemEdits), s => { problemEdits = s.val() || {}; });
             sub("problemReads", ref(db, G.problemReads), s => { problemReads = s.val() || {}; });
@@ -906,9 +942,6 @@
             sub("oilPlan", ref(db, P.oilPlan), s => { oilPlans = s.val() || {}; });
             sub("oilLast", ref(db, P.oilLast), s => { oilLast = s.val() || {}; });
             sub("employees", ref(db, P.employees), s => { employees = s.val() || {}; syncShiftListeners(); });
-            sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
-            if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); saveCopySoon(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
-            syncHistory();
         }
         $("retryBtn").addEventListener("click", () => {
             stopAll(); loaded = {}; loadErr = null; shiftsByEk = {};
@@ -1030,7 +1063,7 @@
         });
 
         // ---------- A saved copy for opening with no signal ----------
-        // Kept in this browser only, and only for the admin who saw it; signing out deletes it.
+        // Kept in this browser only, and only for the person who saw it; signing out deletes it.
         let copyTimer = null;
         function saveCopySoon() {
             if (copyTimer || !liveReady()) return;
@@ -1040,7 +1073,7 @@
                 const names = {};
                 for (const [k, e] of Object.entries(employees)) if (e) names[k] = { name: displayName(e, e.email) };
                 try {
-                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, at: Date.now(), catsRaw, stored, reports, problemEdits, problemReads, problemCleared, oilCleared, oilShown, oilPlans, oilLast, vansRaw, gpsRaw, trash, employees: names }));
+                    localStorage.setItem(SNAP, JSON.stringify({ email: user.email, role: role, at: Date.now(), catsRaw, stored, reports, problemEdits, problemReads, problemCleared, oilCleared, oilShown, oilPlans, oilLast, vansRaw, gpsRaw, trash, employees: names }));
                 } catch (e) { /* full or blocked: just no saved copy */ }
             }, 3000);
         }
@@ -1054,11 +1087,15 @@
             savedCopyAt = c.at;
             syncVehicles();
         }
+        // Who the saved copy was for (admin or staff), to open it with no signal
+        function savedRole(email) {
+            try { const c = JSON.parse(localStorage.getItem(SNAP) || "null"); return c && c.email === email ? c.role || "admin" : null; } catch (e) { return null; }
+        }
         function forgetCopy() { try { localStorage.removeItem(SNAP); } catch (e) {} }
 
-        // Trash older than 30 days is deleted for good (by whichever admin opens Garage first)
+        // Trash older than 30 days is deleted for good (by whichever admin opens Garage first; staff can't delete for good)
         function purgeTrash() {
-            if (purged || offline()) return;
+            if (purged || offline() || !isAdmin()) return;
             const old = g.trashExpired(trash, now());
             purged = true;
             if (!old.length) return;
@@ -1089,7 +1126,9 @@
         // ---------- Views ----------
         const tabs = Array.from(document.querySelectorAll(".tab"));
         const PANELS = ["vehicles", "look", "oil", "categories", "trash"];
+        const PANELS_FOR = () => isAdmin() ? PANELS : ["vehicles", "trash"];
         function go(v, push) {
+            if (!v.startsWith("v:") && !PANELS_FOR().includes(v)) v = "vehicles";
             view = v;
             const isVehicle = v.startsWith("v:");
             const tab = isVehicle ? "vehicles" : v;
@@ -1106,7 +1145,7 @@
         function fromHash() {
             let h = "";
             try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ""; }
-            go(h.startsWith("v/") ? "v:" + h.slice(2) : PANELS.includes(h) ? h : "vehicles", false);
+            go(h.startsWith("v/") ? "v:" + h.slice(2) : PANELS_FOR().includes(h) ? h : "vehicles", false);
         }
         window.addEventListener("popstate", fromHash);
         tabs.forEach(b => b.addEventListener("click", () => go(b.dataset.tab, true)));
@@ -1585,9 +1624,10 @@
             const openBy = {};
             for (const r of Object.values(reports)) if (r && r.text && r.status === "open") { const k = vanKey(r.vehicleName || ""); openBy[k] = (openBy[k] || 0) + 1; }
             const t = today();
-            return vehicles.map(v => ({ v: v, open: openBy[v.key] || 0, oil: v.inClock ? oilDueTag(v) : null, svc: g.serviceDue(stored[v.key], t) }));
+            return vehicles.map(v => ({ v: v, open: openBy[v.key] || 0, oil: v.inClock && isAdmin() ? oilDueTag(v) : null, svc: g.serviceDue(stored[v.key], t) }));
         }
         const FILTERS = [["all", "All", () => true], ["problems", "Open problems", x => x.open > 0], ["oil", "Oil due", x => !!(x.oil && x.oil.due)], ["service", "Service due", x => !!x.svc]];
+        const filtersFor = () => isAdmin() ? FILTERS : FILTERS.filter(x => x[0] === "all" || x[0] === "service");
         function renderVehicles() {
             const q = $("search").value;
             const box = $("vehicleList");
@@ -1606,8 +1646,8 @@
                 return;
             }
             const info = vehicleInfo();
-            const f = FILTERS.find(x => x[0] === filter) || FILTERS[0];
-            $("chips").innerHTML = FILTERS.map(([id, label, fn]) => {
+            const f = filtersFor().find(x => x[0] === filter) || FILTERS[0];
+            $("chips").innerHTML = filtersFor().map(([id, label, fn]) => {
                 const n = id === "all" ? 0 : info.filter(fn).length;
                 return '<button type="button" class="chip" data-filter="' + id + '" aria-pressed="' + (id === f[0]) + '">' + label + (n ? ' <span class="n">' + n + "</span>" : "") + "</button>";
             }).join("");
@@ -1623,14 +1663,14 @@
             const list = info.filter(f[2]);
             const main = list.filter(x => x.v.inClock || x.v.listed), gone = list.filter(x => !x.v.inClock && !x.v.listed);
             box.innerHTML = (main.length ? '<div class="v-grid">' + main.map(card).join("") + "</div>"
-                : empty(filter !== "all" ? "No vehicles with " + esc(f[1].toLowerCase()) + "." : "No vehicles yet. Add one with + Add vehicle, or in the time clock under Admin → Vehicles → Vehicles without GPS.")) +
+                : empty(f[0] !== "all" ? "No vehicles with " + esc(f[1].toLowerCase()) + "." : isAdmin() ? "No vehicles yet. Add one with + Add vehicle, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them.")) +
                 (gone.length ? '<h2 class="section-title">No longer in the van list</h2><div class="v-grid">' + gone.map(card).join("") + "</div>" : "");
         }
         $("search").addEventListener("input", render);
         $("chips").addEventListener("click", e => { const c = e.target.closest("[data-filter]"); if (c) { filter = c.dataset.filter; render(); } });
 
         $("addVehicleBtn").addEventListener("click", async () => {
-            if (!ready()) return;
+            if (!ready() || !isAdmin()) return;
             const check = t => {
                 const c = g.cleanVehicleName(t);
                 if (!c.ok) return c.error;
@@ -1738,7 +1778,8 @@
                     (typeof e.cost === "number" ? "<span>" + esc(g.fmtMoney(e.cost)) + "</span>" : "") + "</div>" : "") +
                 (e.note ? '<div class="i-note">' + esc(e.note) + "</div>" : "") + editsHtml("service", "s:" + e.id, e.edits) + "</div>").join("");
 
-            const oilCard = '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
+            const a = isAdmin(); // staff don't see the time clock's problems and oil checks, or remove vehicles
+            const oilCard = !a ? "" : '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
                 (v.inClock ? '<div class="oil-rows">' + oilRow(v, def) + "</div>"
                     : '<p class="hint">' + lastCheckText(oilLast[key]) + ". Drivers can't pick this vehicle on the time clock, so they're never asked to check its oil.</p>") +
                 '<div class="oil-hist"><div class="label">Last ' + oilDays + " days</div>" +
@@ -1751,13 +1792,13 @@
 
             const model = g.vehicleSummary(s, cats);
             box.innerHTML = '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
-                (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
+                (!a ? "" : openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
-                (v.inClock ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
-                '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button><button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button></div></div>' +
+                (v.inClock && a ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
+                '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button>' + (a ? '<button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button>' : "") + "</div></div>" +
                 '<div class="v-cols"><div>' +
-                    '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
-                        '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>" +
+                    (!a ? "" : '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
+                        '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>") +
                     '<div class="card"><div class="card-head"><div><h3>Info and parts</h3><p class="hint">Bulbs, fluids, sizes, part numbers. Categories are the same for every vehicle.</p></div></div>' + info + "</div>" +
                 "</div><div>" +
                     '<div class="card"><div class="card-head"><div><h3>Service due</h3><p class="hint">' + esc(kmText(s)) + '</p></div><button type="button" class="btn sm primary" id="addRem">+ Add reminder</button></div>' +
@@ -2037,7 +2078,7 @@
             else if (e.target.closest("#addProblem")) addProblem(key);
             else if (e.target.closest("#askAi")) openAi(key);
             else if (e.target.closest("#odoBtn")) updateKm(key);
-            else if (e.target.closest("#removeVehicle")) removeVehicle(key);
+            else if (e.target.closest("#removeVehicle") && isAdmin()) removeVehicle(key);
         });
 
         // ---------- Ask AI ----------
@@ -2095,7 +2136,7 @@
                 gb.checked = k === kids.length; gb.indeterminate = k > 0 && k < kids.length;
             });
             $("aiMissing").innerHTML = g.vehicleSummary(stored[aiKey], cats) ? "" :
-                '<div class="ai-missing"><span>No year, make or model saved for this vehicle. The AI gives better answers with them (or with the VIN).</span><button type="button" class="btn sm" id="aiAddModel">Add them</button></div>';
+                '<div class="ai-missing"><span>No year, make or model saved for this vehicle. The AI gives better answers with them (or with the VIN).</span>' + (isAdmin() || g.vehicleCat(cats) ? '<button type="button" class="btn sm" id="aiAddModel">Add them</button>' : "") + "</div>";
             const text = aiBuild();
             $("aiText").value = text;
             $("aiCount").textContent = "(" + text.length.toLocaleString("en-CA") + " characters)";
@@ -2174,12 +2215,13 @@
         function renderTrash() {
             const box = $("trashList");
             if (!ready()) { box.innerHTML = loadingHtml(); return; }
-            const list = g.trashList(trash);
+            const list = g.trashList(trash), a = isAdmin();
             box.innerHTML = list.map(t => '<div class="entry"><div class="e-top"><span class="e-who">' + KIND[t.kind] + (t.kind === "vehicle" ? "" : " · " + vehicleLink(t.vkey, t.vname || t.vkey)) +
                 '</span><span class="e-when">' + esc(ago(t.at)) + "</span></div>" +
                 '<div class="e-what">' + esc(trashText(t)) + "</div>" +
                 '<div class="e-detail">Deleted by ' + esc((t.by || "").split("@")[0]) + ". Gone for good on " + esc(fmtKey(dayKey(t.at + g.TRASH_DAYS * 86400000))) + ".</div>" +
-                '<div class="e-actions"><button type="button" class="btn sm primary" data-restore="' + esc(t.tid) + '">Put back</button><button type="button" class="btn sm danger" data-purge="' + esc(t.tid) + '">Delete for good</button></div></div>').join("") ||
+                (a ? '<div class="e-actions"><button type="button" class="btn sm primary" data-restore="' + esc(t.tid) + '">Put back</button><button type="button" class="btn sm danger" data-purge="' + esc(t.tid) + '">Delete for good</button></div>'
+                    : t.kind === "vehicle" ? '<div class="e-detail">An admin can put a vehicle back.</div>' : '<div class="e-actions"><button type="button" class="btn sm primary" data-restore="' + esc(t.tid) + '">Put back</button></div>') + "</div>").join("") ||
                 empty("The Trash is empty.");
         }
         $("trashList").addEventListener("click", async e => {
@@ -2187,6 +2229,7 @@
             const t = rb ? trash[rb.dataset.restore] : pb ? trash[pb.dataset.purge] : null;
             if (!t) return;
             const tid = rb ? rb.dataset.restore : pb.dataset.purge;
+            if (!isAdmin() && (pb || t.kind === "vehicle")) return;
             if (pb) {
                 if (await ask({ title: "Delete for good?", sub: KIND[t.kind] + ": " + trashText(t) + ". This can't be undone.", ok: "Delete for good", danger: true }) === null) return;
                 try { await write({ [G.trash + "/" + tid]: null }, { vkey: t.vkey, text: "Deleted for good from the Trash: " + trashText(t) }); toast("Deleted for good."); }

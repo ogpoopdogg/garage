@@ -186,3 +186,80 @@ test('read and cleared marks: a problem can only be cleared once it\'s fixed; oi
   await assertFails(matt.ref('garage/problem_reads/open1').set(m));
   await assertFails(matt.ref('garage/oil_cleared').once('value'));
 });
+
+// Staff: accounts with staff/{uid} true (the same flag the other staff tools check) get the vehicle records:
+// info and parts, service, reminders, km, the Trash for those, and the Changes lists. Vehicle checks, the oil
+// schedule, categories, and adding, removing or putting back vehicles stay with the admins.
+const staff = async (email) => {
+  const db = as(email);
+  await env.withSecurityRulesDisabled(ctx => ctx.database().ref('staff/' + email.replace(/[^a-z]/g, '')).set(true));
+  return db;
+};
+const svc = { day: '2026-11-06', what: 'Oil change', km: 182500, at: 1, by: 'sam@ec.com' };
+const rem = { what: 'Oil change', dueKm: 190000, at: 1, by: 'sam@ec.com' };
+
+test('staff can read and change the vehicle records', async () => {
+  const db = await staff('sam@ec.com');
+  await assertSucceeds(db.ref('garage/categories').once('value'));
+  await assertSucceeds(db.ref('garage/vehicles').once('value'));
+  await assertSucceeds(db.ref('garage/trash').once('value'));
+  await assertSucceeds(db.ref('garage/history/12').once('value'));
+  await assertSucceeds(db.ref('garage/vehicles/12/name').set('12'));
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i1').set(item));
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i1/note').set('left side'));
+  await assertSucceeds(db.ref('garage/vehicles/12/service/s1').set(svc));
+  await assertSucceeds(db.ref('garage/vehicles/12/reminders/r1').set(rem));
+  await assertSucceeds(db.ref('garage/vehicles/12/odo').set({ km: 182600, day: '2026-11-06', at: 1, by: 'sam@ec.com' }));
+  await assertSucceeds(db.ref('garage/history/12/h1').set({ at: 1, by: 'sam@ec.com', text: 'Km updated' }));
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i1').remove());
+  // the same checks as for admins
+  await assertFails(db.ref('garage/vehicles/12/items/i2').set(Object.assign({}, item, { link: 'javascript:alert(1)' })));
+  await assertFails(db.ref('garage/vehicles/12/name').remove());
+});
+
+test('staff can\'t open the rest of Garage', async () => {
+  const db = await staff('sam@ec.com');
+  await assertFails(db.ref('garage').once('value'));
+  for (const p of ['problem_edits', 'problem_reads', 'problem_cleared', 'oil_cleared', 'oil_shown']) await assertFails(db.ref('garage/' + p).once('value'));
+  await assertFails(db.ref('garage/problem_reads/r1').set({ at: 1, by: 'sam@ec.com' }));
+  await assertFails(db.ref('garage/oil_cleared/sam@ec,com/s1').set({ at: 1, by: 'sam@ec.com' }));
+  await assertFails(db.ref('garage/categories/x').set({ name: 'Brakes', order: 1 }));
+  await assertFails(db.ref('garage/categories/lights/name').set('Bulbs'));
+  await assertFails(db.ref('garage/vehicles/14').set({ name: '14', listed: true }));
+  await assertFails(db.ref('garage/vehicles/12/listed').set(true));
+  await assertFails(db.ref('garage/vehicles/12/removed').set(true));
+  // a Changes line can be added, not changed or deleted
+  await env.withSecurityRulesDisabled(ctx => ctx.database().ref('garage/history/12/h1').set({ at: 1, by: 'justin@ec.com', text: 'Km updated' }));
+  await assertFails(db.ref('garage/history/12/h1').set({ at: 2, by: 'sam@ec.com', text: 'Something else' }));
+  await assertFails(db.ref('garage/history/12/h1').remove());
+});
+
+test('staff and the Trash: put entries in and back, not vehicles, and nothing deleted for good', async () => {
+  const db = await staff('sam@ec.com');
+  const t = { at: 1, by: 'sam@ec.com', kind: 'item', vkey: '12', vname: '12', id: 'i1', data: item };
+  await assertSucceeds(db.ref().update({ 'garage/vehicles/12/items/i1': null, 'garage/trash/t1': t }));
+  await assertFails(db.ref('garage/trash/t2').set(Object.assign({}, t, { kind: 'vehicle', id: '', data: { name: '12' } })));
+  // deleting for good (the entry isn't put back with it) is for admins
+  await assertFails(db.ref('garage/trash/t1').remove());
+  await assertSucceeds(db.ref().update({ 'garage/vehicles/12/items/i1': item, 'garage/trash/t1': null }));
+  for (const [kind, sect, data] of [['service', 'service', svc], ['reminder', 'reminders', rem]]) {
+    await assertSucceeds(db.ref('garage/trash/t3').set(Object.assign({}, t, { kind: kind, id: 'x1', data: data })));
+    await assertFails(db.ref().update({ ['garage/vehicles/12/items/x1']: item, 'garage/trash/t3': null }));
+    await assertSucceeds(db.ref().update({ ['garage/vehicles/12/' + sect + '/x1']: data, 'garage/trash/t3': null }));
+  }
+  // a removed vehicle in the Trash stays for the admins
+  await env.withSecurityRulesDisabled(ctx => ctx.database().ref('garage/trash/t4').set({ at: 1, by: 'justin@ec.com', kind: 'vehicle', vkey: '14', vname: '14', id: '', data: { name: '14' } }));
+  await assertFails(db.ref().update({ 'garage/vehicles/14/name': '14', 'garage/vehicles/14/removed': null, 'garage/trash/t4': null }));
+  await assertFails(db.ref('garage/trash/t4').remove());
+  await assertSucceeds(admin().ref('garage/trash/t4').remove());
+});
+
+test('an account that isn\'t staff (or whose staff flag is off) gets nothing', async () => {
+  await env.withSecurityRulesDisabled(ctx => ctx.database().ref('staff/pat').set(false));
+  for (const db of [as('pat@ec.com'), as('matt@ec.com')]) {
+    await assertFails(db.ref('garage/vehicles').once('value'));
+    await assertFails(db.ref('garage/categories').once('value'));
+    await assertFails(db.ref('garage/vehicles/12/items/i1').set(item));
+    await assertFails(db.ref('garage/history/12/h1').set({ at: 1, by: 'x', text: 'x' }));
+  }
+});
