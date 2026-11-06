@@ -4,6 +4,7 @@
       ".read": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
       ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
       "categories": {
+        ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$cat": {
           ".validate": "$cat.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['name'])",
           "name": {
@@ -35,12 +36,15 @@
         }
       },
       "vehicles": {
+        ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$vkey": {
           ".validate": "$vkey.matches(/^[a-z0-9]{1,60}$/)",
           "name": {
+            ".write": "auth != null && root.child('staff').child(auth.uid).val() == true && newData.exists()",
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
           },
           "items": {
+            ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
             "$id": {
               ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['cat']) && (newData.hasChild('label') || newData.hasChild('value') || newData.hasChild('part') || newData.hasChild('link') || newData.hasChild('note') || newData.hasChild('extra'))",
               "cat": {
@@ -105,6 +109,7 @@
             }
           },
           "service": {
+            ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
             "$id": {
               ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['day', 'what'])",
               "day": {
@@ -166,6 +171,7 @@
             ".validate": "newData.isBoolean()"
           },
           "reminders": {
+            ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
             "$id": {
               ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['what']) && (newData.hasChild('dueKm') || newData.hasChild('dueDay'))",
               "what": {
@@ -224,6 +230,7 @@
             }
           },
           "odo": {
+            ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
             ".validate": "newData.hasChildren(['km'])",
             "km": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
@@ -247,7 +254,9 @@
         }
       },
       "trash": {
+        ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$tid": {
+          ".write": "auth != null && root.child('staff').child(auth.uid).val() == true && ((!data.exists() && newData.child('kind').val() !== 'vehicle') || (!newData.exists() && data.child('id').val().length > 0 && ((data.child('kind').val() === 'item' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/items/' + data.child('id').val()).exists()) || (data.child('kind').val() === 'service' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/service/' + data.child('id').val()).exists()) || (data.child('kind').val() === 'reminder' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/reminders/' + data.child('id').val()).exists()))))",
           ".validate": "$tid.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'by', 'kind', 'vkey', 'data'])",
           "at": {
             ".validate": "newData.isNumber()"
@@ -276,9 +285,11 @@
         }
       },
       "history": {
+        ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$vkey": {
           ".validate": "$vkey.matches(/^([a-z0-9]{1,60}|_all)$/)",
           "$id": {
+            ".write": "auth != null && root.child('staff').child(auth.uid).val() == true && !data.exists()",
             ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'text'])",
             "at": {
               ".validate": "newData.isNumber()"

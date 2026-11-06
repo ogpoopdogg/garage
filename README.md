@@ -2,9 +2,14 @@
 
 | Page | URL | Who |
 | --- | --- | --- |
-| Garage | `https://app.eandccourier.ca/garage/` (opens `garage.html`) | The time clock admins: `justin@ec.com`, `desirae@ec.com`, `celeste@ec.com` |
+| Garage | `https://app.eandccourier.ca/garage/` (opens `garage.html`) | The time clock admins (`justin@ec.com`, `desirae@ec.com`, `celeste@ec.com`): everything. Staff (accounts with `staff/{uid}` set to `true`, the flag the other staff tools check): the vehicle records |
 
 One page for everything we know about each vehicle:
+
+**Staff** see the Vehicles and Trash tabs: info and parts, the service log, service reminders, **Update km**,
+search, **Ask AI** and the export, and they can put entries, service and reminders back from the Trash. The
+time clock's Vehicle checks and oil checks (which come from every driver's shifts), the oil schedule, the
+categories, adding, removing or putting back vehicles, and **Delete for good** stay with the admins.
 
 - **Info and parts:** headlight and other bulb types, fluids, tire sizes, filters, wipers,
   battery, plate and VIN, notes. Each entry has a name, a type or size, and optionally a part
@@ -119,7 +124,10 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 2. **Add the database rules.** Firebase console → **Realtime Database** → **Rules**: add the
    `garage` block from `database.rules.json` next to the `timeclock` block. Don't replace
    the whole file, or you'll remove the rules the time clock and your other apps rely on.
-   Only the three admins can read or change `garage/`. The time clock's rules already let
+   The three admins can read and change all of `garage/`; staff (`staff/{uid}` true) can read the categories,
+   change the vehicle records (`name`, `items`, `service`, `reminders`, `odo`), add to the Changes lists and
+   use the Trash for entries. Staff also need to read `timeclock/vans` (the van list), which is in the
+   `timeclock` block: its `.read` lets employees **or** staff read it. The time clock's rules already let
    the admins mark problems fixed, mark oil checks seen and change the schedule.
 3. To add or remove an admin, change the email in `ADMIN_EMAILS` in the time clock's
    `tc-core.js` (lets them in) and in **both** `database.rules.json` files (lets them read
