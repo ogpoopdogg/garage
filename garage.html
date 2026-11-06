@@ -396,6 +396,124 @@
             .fld-row .fld-kind { display: none; }
             .card { padding: 16px; }
         }
+        /* ---------- Phone layout (body.phone, under 700px wide): big buttons, one job per screen ----------
+           Home is a grid of big vehicle tiles; a vehicle opens to big buttons, each opening its own screen
+           (#v/{key}/{part}); the other sections are big rows under the tiles; windows fill the screen. */
+        .ph-only { display: none; }
+        body.phone .ph-only { display: block; }
+        body.phone .ph-hide, body.phone .tabs, body.phone #backBtn, body.phone .panel-sub, body.phone #chips { display: none !important; }
+        body.phone .topbar { padding-top: 12px; padding-bottom: 8px; }
+        body.phone .panel { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px); }
+        body.phone .panel-head { margin-bottom: 14px; }
+        body.phone .btn { height: 48px; font-size: 1.1rem; }
+        body.phone .btn.sm { height: 44px; padding: 0 14px; font-size: 1rem; border-radius: 10px; }
+        body.phone .icon-btn { width: 44px; height: 44px; }
+        body.phone .icon-btn svg { width: 20px; height: 20px; }
+        body.phone .input, body.phone .select { height: 50px; font-size: 1.05rem; }
+        body.phone .textarea { font-size: 1.05rem; min-height: 110px; }
+        body.phone .card + .card { margin-top: 12px; }
+        body.phone .entry .e-actions .btn { flex: 1 1 auto; }
+        body.phone .item { padding: 12px; }
+        body.phone .item[data-row] { cursor: pointer; }
+        .ph-back {
+            display: inline-flex; align-items: center; gap: 2px; height: 44px; margin: 0 0 6px -8px; padding: 0 8px; border: 0; background: none; cursor: pointer;
+            color: var(--yellow); font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; letter-spacing: 0.02em;
+        }
+        .ph-back svg { width: 24px; height: 24px; }
+        /* Home: the vehicle tiles, coloured by how they stand */
+        .ph-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .ph-tile {
+            display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 112px; padding: 14px; border: 0; border-radius: 16px; cursor: pointer;
+            text-align: left; color: inherit; background: var(--asphalt-2); box-shadow: inset 0 5px 0 var(--st, var(--green)), inset 0 0 0 1px var(--line);
+        }
+        .ph-tile:active { transform: scale(0.98); }
+        .ph-tile .t-name { font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1; overflow-wrap: anywhere; }
+        .ph-tile .t-st { font-size: 0.92rem; font-weight: 600; color: var(--st, var(--green)); line-height: 1.25; }
+        .ph-tile.gone { opacity: 0.7; }
+        .st-red { --st: var(--red); }
+        .st-orange { --st: var(--orange); }
+        .st-green { --st: var(--green); }
+        .st-grey { --st: var(--dim); }
+        /* Big rows: the other sections on home, and More on a vehicle */
+        .ph-rows { margin-top: 18px; border-radius: 16px; background: var(--asphalt-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+        .ph-row {
+            display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; padding: 8px 14px; border: 0; border-top: 1px solid var(--line);
+            background: none; color: inherit; font: inherit; font-size: 1.08rem; text-align: left; cursor: pointer;
+        }
+        .ph-row:first-child { border-top: 0; }
+        .ph-row > svg { width: 22px; height: 22px; color: var(--yellow); flex: none; }
+        .ph-row .r-text { flex: 1; min-width: 0; }
+        .ph-row .r-sub { display: block; color: var(--muted); font-size: 0.88rem; }
+        .ph-row .r-go { width: 18px; height: 18px; color: var(--dim); flex: none; }
+        .ph-row.danger, .ph-row.danger > svg { color: var(--red); }
+        .ph-label { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); margin: 22px 0 8px; }
+        /* One vehicle: its name, then the big action buttons */
+        .ph-vhead h1 { font-family: var(--font-display); font-weight: 800; font-size: 2.6rem; line-height: 0.95; overflow-wrap: anywhere; }
+        .ph-vhead .v-model, .ph-vhead .ph-km { color: var(--muted); margin-top: 4px; }
+        .ph-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0 4px; }
+        .ph-act {
+            position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; min-height: 104px; padding: 14px; border: 0; border-radius: 16px;
+            background: var(--asphalt-2); box-shadow: inset 0 0 0 1px var(--line); color: inherit; text-align: left; cursor: pointer;
+            font-size: 1.12rem; font-weight: 600; line-height: 1.15;
+        }
+        .ph-act:active { transform: scale(0.98); }
+        .ph-act svg { width: 30px; height: 30px; color: var(--yellow); }
+        .ph-act.red svg { color: var(--red); }
+        .ph-act.blue svg { color: var(--blue); }
+        .ph-act .a-sub { display: block; font-size: 0.85rem; font-weight: 500; color: var(--muted); margin-top: 3px; }
+        .ph-act .tab-count { position: absolute; top: 12px; right: 12px; }
+        .ph-dot { width: 10px; height: 10px; border-radius: 5px; flex: none; background: var(--st, var(--red)); }
+        /* A vehicle's own screens */
+        .ph-title { font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; line-height: 1; margin-bottom: 4px; }
+        .ph-sub { color: var(--muted); margin-bottom: 14px; }
+        .ph-big { width: 100%; height: 54px !important; font-size: 1.2rem !important; margin-bottom: 14px; }
+        .ph-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .ph-two .btn { width: 100%; }
+        .ph-cat { padding: 0; overflow: hidden; }
+        .ph-cat summary {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 58px; padding: 0 14px; cursor: pointer; list-style: none;
+            font-family: var(--font-display); font-weight: 700; font-size: 1.4rem;
+        }
+        .ph-cat summary::-webkit-details-marker { display: none; }
+        .ph-cat summary .c-n { font-family: var(--font-body); font-size: 0.95rem; font-weight: 500; color: var(--muted); }
+        .ph-cat summary .c-n::after { content: " ▸"; }
+        .ph-cat[open] summary .c-n::after { content: " ▾"; }
+        .ph-cat.empty-cat summary { color: var(--dim); font-size: 1.2rem; min-height: 50px; }
+        .ph-cat .items { margin: 0; padding: 0 10px 10px; }
+        .ph-cat .ph-add { display: block; width: 100%; height: 50px; border: 0; background: none; color: var(--yellow); font: inherit; font-weight: 600; text-align: left; padding: 0 14px; cursor: pointer; border-top: 1px solid var(--line); }
+        .ph-kmbox { text-align: center; margin: 22px 0 6px; }
+        body.phone .ph-kmbox .input {
+            width: 100%; height: 84px; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 3.4rem; letter-spacing: 0.02em; padding: 0 8px;
+        }
+        .ph-kmbox .muted { margin-top: 8px; }
+        .ph-kmmsg { color: var(--red); min-height: 1.5em; text-align: center; margin: 6px 0 10px; }
+        .ph-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--asphalt-2); box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 14px; }
+        .ph-seg button { height: 44px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .ph-seg button[aria-pressed="true"] { background: var(--yellow); color: #111; }
+        .ph-seg button[aria-pressed="true"] .tab-count { background: rgba(0, 0, 0, 0.15); color: #111; }
+        body.phone .look-grid[data-show="vans"] > .card:nth-child(2), body.phone .look-grid[data-show="oil"] > .card:nth-child(1) { display: none; }
+        body.phone .look-grid > .card > .hint { display: none; }
+        /* Windows fill the screen, with Save at the bottom where a thumb is */
+        body.phone .modal-backdrop { padding: 0; place-items: stretch; }
+        body.phone .modal {
+            width: 100%; max-height: none; height: 100%; border-radius: 0; display: flex; flex-direction: column;
+            padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px 0; transform: translateY(24px);
+        }
+        body.phone .modal-backdrop.show .modal { transform: none; }
+        body.phone .modal h2 { font-size: 2.1rem; }
+        body.phone .modal-foot {
+            position: sticky; bottom: 0; margin: auto -16px 0; padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+            background: #141719; border-top: 1px solid var(--line); flex-wrap: nowrap;
+        }
+        body.phone .modal-foot .spacer { display: none; }
+        body.phone .modal-foot .btn { height: 52px; }
+        body.phone .modal-foot .btn.primary, body.phone .modal-foot .btn.danger:last-child { flex: 1; }
+        body.phone .ai-go { grid-template-columns: 1fr; }
+        body.phone .ai-parts { grid-template-columns: 1fr; }
+        body.phone .ai-parts label { min-height: 44px; }
+        body.phone .cal-day { height: 46px; }
+        body.phone .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
         }
@@ -434,6 +552,8 @@
     <main class="wrap" id="appScreen" hidden>
         <div class="offline-bar" id="offlineBar" role="status" hidden></div>
         <div class="load-error" id="loadError" role="alert" hidden><p id="loadErrorText"></p><button type="button" class="btn sm" id="retryBtn">Try again</button></div>
+        <!-- On a phone: back to where this screen was opened from -->
+        <button type="button" class="ph-back" id="phoneBack" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span id="phoneBackText">Garage</span></button>
         <nav class="tabs" role="tablist" aria-label="Garage sections" id="tabs">
             <button type="button" class="tab" role="tab" data-tab="vehicles" aria-selected="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V7a1 1 0 0 1 1-1h10v10"/><path d="M14 9h4l3 3.5V16h-7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
@@ -461,7 +581,7 @@
         <section class="panel" id="panel-vehicles" role="tabpanel">
             <div class="panel-head">
                 <div><h1 class="panel-title">Vehicles</h1><p class="panel-sub" id="vehiclesSub">Everything we know about each vehicle: parts, problems, oil checks and service.</p></div>
-                <div class="panel-actions">
+                <div class="panel-actions ph-hide">
                     <button type="button" class="btn" id="exportBtn">Export spreadsheet</button>
                     <button type="button" class="btn primary" id="addVehicleBtn">+ Add vehicle</button>
                 </div>
@@ -472,6 +592,7 @@
             </div>
             <div class="chips" id="chips" role="group" aria-label="Show"></div>
             <div id="vehicleList"></div>
+            <div id="phoneHome" class="ph-only"></div>
         </section>
 
         <!-- Vehicle checks: Vehicle Check reports and oil checks (moved here from the admin Inbox) -->
@@ -479,7 +600,8 @@
             <div class="panel-head">
                 <div><h1 class="panel-title">Vehicle checks</h1><p class="panel-sub">Problems drivers reported at Vehicle Check, and oil checks from the last two weeks.</p></div>
             </div>
-            <div class="look-grid">
+            <div class="ph-only"><div class="ph-seg" id="lookSeg"><button type="button" data-look="vans" aria-pressed="true">Problems <span class="tab-count" id="segVanCount" hidden>0</span></button><button type="button" data-look="oil" aria-pressed="false">Oil checks <span class="tab-count" id="segOilCount" hidden>0</span></button></div></div>
+            <div class="look-grid" id="lookGrid" data-show="vans">
                 <div class="card">
                     <h3>Vehicle problems <span class="tab-count" id="lookVanCount" hidden>0</span></h3>
                     <p class="hint" style="margin-bottom:12px">New ones count on the tab until they're marked as read. Fixed ones stay here until they're cleared; only a fixed one can be cleared. To add one yourself, open the vehicle.</p>
@@ -721,6 +843,15 @@
         const { ref, onValue, get, update, push, query, orderByChild, startAt, endAt, limitToLast, serverTimestamp } = fd;
 
         const $ = id => document.getElementById(id);
+        // Phones get their own layout (body.phone): big buttons, one job per screen. The computer layout is unchanged.
+        const phoneMq = matchMedia("(max-width: 700px)");
+        const phone = () => phoneMq.matches;
+        const applyPhone = () => {
+            document.body.classList.toggle("phone", phone());
+            $("search").placeholder = phone() ? "Search parts, e.g. H11" : "Search parts on every vehicle, e.g. H11 or wiper";
+        };
+        applyPhone();
+        if (phoneMq.addEventListener) phoneMq.addEventListener("change", () => { applyPhone(); render(); });
         const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history", problemEdits: "garage/problem_edits",
             problemReads: "garage/problem_reads", problemCleared: "garage/problem_cleared", oilCleared: "garage/oil_cleared", oilShown: "garage/oil_shown" };
         // Garage lists the vehicles in RouteWatcher (GPS), the time clock's vans (Admin → Vehicles → Vehicles without GPS)
@@ -740,7 +871,9 @@
         let gpsRaw = null, vansRaw = {}, vehicles = [];
         let loaded = {}, loadErr = null, savedCopyAt = 0, connected = false, everConnected = false, signedInAt = 0;
         let oilDays = OIL_DAYS, filter = "all", histShown = HIST_FIRST, purged = false;
-        let view = "vehicles";    // a tab name, or "v:" + vehicle key
+        let view = "vehicles";    // a tab name, or "v:" + vehicle key (on a phone, "v:" + key + "/" + part: one of its screens)
+        // [vehicle key, part] of a vehicle view ("v:12/parts" -> ["12", "parts"])
+        const vParts = v => { const r = v.slice(2), i = r.indexOf("/"); return i < 0 ? [r, ""] : [r.slice(0, i), r.slice(i + 1)]; };
         const now = () => Date.now() + serverOffset;
         const isAdmin = () => role === "admin";
         const liveReady = () => NEED.every(k => loaded[k] || (k === "reports" && !isAdmin()));
@@ -775,6 +908,25 @@
             down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
             del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'
         };
+        // The phone layout's big buttons
+        const svgI = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + "</svg>";
+        const PI = {
+            warn: svgI('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>'),
+            wrench: svgI('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5Z"/>'),
+            gauge: svgI('<path d="M12 14l4-4"/><path d="M3.3 17a10 10 0 1 1 17.4 0"/>'),
+            bulb: svgI('<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/>'),
+            drop: svgI('<path d="M12 2.7s-6 6.6-6 11.3a6 6 0 0 0 12 0c0-4.7-6-11.3-6-11.3Z"/>'),
+            spark: svgI('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'),
+            list: svgI('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
+            trash: svgI('<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>'),
+            plus: svgI('<path d="M12 5v14M5 12h14"/>'),
+            down: svgI('<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>'),
+            clock: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+            go: '<svg class="r-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>'
+        };
+        // A big row: icon, text (and a line under it), and an arrow
+        const phRow = (attrs, icon, text, sub, cls) => '<button type="button" class="ph-row' + (cls ? " " + cls : "") + '" ' + attrs + ">" + icon +
+            '<span class="r-text">' + text + (sub ? '<span class="r-sub">' + sub + "</span>" : "") + "</span>" + PI.go + "</button>";
 
         // ---------- Saving ----------
         // Every change goes through here, with a line for each vehicle's Changes list ({ vkey, text }), in the same
@@ -993,7 +1145,7 @@
         // It shows the newest 10, and Show more adds 20 at a time; only those (and one more, to know there are more)
         // are loaded.
         function syncHistory() {
-            const want = view.startsWith("v:") ? view.slice(2) : view === "oil" || view === "categories" ? g.HISTORY_ALL : null;
+            const want = view.startsWith("v:") ? vParts(view)[0] : view === "oil" || view === "categories" ? g.HISTORY_ALL : null;
             if (!user || want === histKey) return;
             if (histUnsub) histUnsub();
             histUnsub = null; histKey = want; history = []; histShown = HIST_FIRST;
@@ -1135,13 +1287,18 @@
             tabs.forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
             PANELS.forEach(p => { $("panel-" + p).hidden = isVehicle || p !== v; });
             $("panel-vehicle").hidden = !isVehicle;
-            const hash = "#" + (isVehicle ? "v/" + encodeURIComponent(v.slice(2)) : v);
+            const hash = hashFor(v);
             if (push && location.hash !== hash) history_.pushState(null, "", hash);
             syncHistory();
             render();
             if (push) window.scrollTo(0, 0);
         }
         const history_ = window.history;
+        function hashFor(v) {
+            if (!v.startsWith("v:")) return "#" + v;
+            const [k, part] = vParts(v);
+            return "#v/" + encodeURIComponent(k) + (part ? "/" + part : "");
+        }
         function fromHash() {
             let h = "";
             try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ""; }
@@ -1150,6 +1307,34 @@
         window.addEventListener("popstate", fromHash);
         tabs.forEach(b => b.addEventListener("click", () => go(b.dataset.tab, true)));
         $("backBtn").addEventListener("click", () => go("vehicles", true));
+        // On a phone, the back button at the top: a vehicle's screen goes back to the vehicle, the rest to home
+        function renderBack() {
+            const b = $("phoneBack");
+            b.hidden = !phone() || view === "vehicles";
+            if (b.hidden) return;
+            let to = "vehicles", text = "Garage";
+            if (view.startsWith("v:")) {
+                const [k, part] = vParts(view);
+                if (part) { to = "v:" + k; text = vName(k); } else text = "All vehicles";
+            }
+            b.dataset.to = to;
+            $("phoneBackText").textContent = text;
+        }
+        $("phoneBack").addEventListener("click", () => go($("phoneBack").dataset.to || "vehicles", true));
+        // The big rows on a phone's home screen open the other sections
+        $("phoneHome").addEventListener("click", e => {
+            const b = e.target.closest("[data-go]");
+            if (!b) return;
+            if (b.dataset.go === "add") $("addVehicleBtn").click();
+            else if (b.dataset.go === "export") $("exportBtn").click();
+            else go(b.dataset.go, true);
+        });
+        $("lookSeg").addEventListener("click", e => {
+            const b = e.target.closest("[data-look]");
+            if (!b) return;
+            $("lookGrid").dataset.show = b.dataset.look;
+            $("lookSeg").querySelectorAll("[data-look]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+        });
         document.addEventListener("click", e => {
             const o = e.target.closest("[data-open]");
             if (o) go("v:" + o.dataset.open, true);
@@ -1172,7 +1357,8 @@
                 else if (view === "oil") renderOilPlan();
                 else if (view === "categories") renderCategories();
                 else if (view === "trash") renderTrash();
-                else renderVehicle(view.slice(2));
+                else renderVehicle(...vParts(view));
+                renderBack();
                 if ($("aiModal").classList.contains("show")) aiRender();
             });
         }
@@ -1222,7 +1408,7 @@
                 '<div class="oil-ctl">' + oilControls(o.plan, !o.plan.own) +
                 (o.next !== null && o.next !== "shift" && !o.due ? '<button type="button" class="btn sm ghost" data-oil-ask>Ask at next shift</button>' : "") + "</div></div>";
         }
-        const typingNumber = box => box.contains(document.activeElement) && document.activeElement.matches("input[type=number]");
+        const typingNumber = box => box.contains(document.activeElement) && document.activeElement.matches("input[type=number], [data-keep]");
         function renderOilPlan() {
             $("allHistOil").innerHTML = historyHtml();
             const box = $("oilRows");
@@ -1392,6 +1578,8 @@
         function renderLook(d) {
             $("lookVanCount").hidden = !d.openVans; $("lookVanCount").textContent = d.openVans;
             $("lookOilCount").hidden = !d.openOils; $("lookOilCount").textContent = d.openOils;
+            $("segVanCount").hidden = !d.openVans; $("segVanCount").textContent = d.openVans;
+            $("segOilCount").hidden = !d.openOils; $("segOilCount").textContent = d.openOils;
             if (!ready()) { $("lookVans").innerHTML = loadingHtml(); return; }
             // Problems: the ones not cleared, or with a search, every one it finds
             const pq = $("probSearch").value;
@@ -1632,6 +1820,7 @@
             const q = $("search").value;
             const box = $("vehicleList");
             $("chips").hidden = !!q.trim();
+            $("phoneHome").innerHTML = "";
             if (!ready()) { box.innerHTML = loadingHtml(); $("chips").innerHTML = ""; return; }
             if (q.trim()) {
                 const hits = g.searchGarage(q, vehicles, stored, cats);
@@ -1646,6 +1835,7 @@
                 return;
             }
             const info = vehicleInfo();
+            if (phone()) { renderPhoneHome(info); return; }
             const f = filtersFor().find(x => x[0] === filter) || FILTERS[0];
             $("chips").innerHTML = filtersFor().map(([id, label, fn]) => {
                 const n = id === "all" ? 0 : info.filter(fn).length;
@@ -1665,6 +1855,34 @@
             box.innerHTML = (main.length ? '<div class="v-grid">' + main.map(card).join("") + "</div>"
                 : empty(f[0] !== "all" ? "No vehicles with " + esc(f[1].toLowerCase()) + "." : isAdmin() ? "No vehicles yet. Add one with + Add vehicle, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them.")) +
                 (gone.length ? '<h2 class="section-title">No longer in the van list</h2><div class="v-grid">' + gone.map(card).join("") + "</div>" : "");
+        }
+        // How a vehicle stands, for its tile on a phone: red (a problem, service overdue, oil check due), orange (service
+        // due soon), green (all good), grey (no longer in the van list)
+        function tileState(x) {
+            const bits = [];
+            let st = "green";
+            if (x.open) { bits.push(x.open + (x.open === 1 ? " problem" : " problems")); st = "red"; }
+            if (x.svc === "overdue") { bits.push("Service overdue"); st = "red"; }
+            if (x.oil && x.oil.due) { bits.push("Oil check due"); st = "red"; }
+            if (x.svc === "soon") { bits.push("Service due soon"); if (st === "green") st = "orange"; }
+            if (!x.v.inClock && !x.v.listed) return { st: "grey", text: "Not in the van list" };
+            return { st: st, text: bits.length ? bits.join(" · ") : "All good" };
+        }
+        const ST_ORDER = { red: 0, orange: 1, green: 2, grey: 3 };
+        function renderPhoneHome(info) {
+            const tiles = info.map(x => Object.assign({ t: tileState(x) }, x)).sort((a, b) => ST_ORDER[a.t.st] - ST_ORDER[b.t.st]);
+            const tile = x => '<button type="button" class="ph-tile st-' + x.t.st + (x.t.st === "grey" ? " gone" : "") + '" data-open="' + esc(x.v.key) + '">' +
+                '<span class="t-name">' + esc(x.v.name) + '</span><span class="t-st">' + esc(x.t.text) + "</span></button>";
+            $("vehicleList").innerHTML = tiles.length ? '<div class="ph-tiles">' + tiles.map(tile).join("") + "</div>"
+                : empty(isAdmin() ? "No vehicles yet. Add one below, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them.");
+            const look = isAdmin() ? lookData() : null, n = look ? look.openVans + look.openOils : 0;
+            $("phoneHome").innerHTML = '<div class="ph-rows">' +
+                (isAdmin() ? phRow('data-go="look"', PI.warn, "Vehicle checks", n ? n + " new" : "Problems drivers reported, and oil checks") +
+                    phRow('data-go="oil"', PI.drop, "Oil check schedule", "How often drivers check the oil") +
+                    phRow('data-go="categories"', PI.list, "Categories", "The sections of Parts &amp; info") : "") +
+                phRow('data-go="trash"', PI.trash, "Trash", "Put deleted things back") +
+                (isAdmin() ? phRow('data-go="add"', PI.plus, "Add a vehicle", "") : "") +
+                phRow('data-go="export"', PI.down, "Export spreadsheet", "Everything, as a backup") + "</div>";
         }
         $("search").addEventListener("input", render);
         $("chips").addEventListener("click", e => { const c = e.target.closest("[data-filter]"); if (c) { filter = c.dataset.filter; render(); } });
@@ -1710,7 +1928,7 @@
             if (typeof r.dueKm === "number") bits.push("At " + g.fmtKm(r.dueKm) + (st.kmLeft === null ? "" : st.kmLeft > 0 ? " (" + g.fmtKm(st.kmLeft) + " to go)" : st.kmLeft === 0 ? " (now)" : " (" + g.fmtKm(-st.kmLeft) + " over)"));
             if (r.dueDay) bits.push("On " + fmtKey(r.dueDay) + (st.daysLeft > 1 ? " (in " + st.daysLeft + " days)" : st.daysLeft === 1 ? " (tomorrow)" : st.daysLeft === 0 ? " (today)" : " (" + -st.daysLeft + (st.daysLeft === -1 ? " day" : " days") + " ago)"));
             const every = [r.everyKm ? "every " + g.fmtKm(r.everyKm) : "", r.everyMonths ? "every " + r.everyMonths + (r.everyMonths === 1 ? " month" : " months") : ""].filter(Boolean).join(" or ");
-            return '<div class="item"><div class="i-main"><span class="i-value">' + esc(r.what) + "</span> " +
+            return '<div class="item" data-row="rem:' + esc(r.id) + '"><div class="i-main"><span class="i-value">' + esc(r.what) + "</span> " +
                 (st.state === "overdue" ? '<span class="tag warn">Overdue</span>' : st.state === "soon" ? '<span class="tag soon">Due soon</span>' : "") + "</div>" +
                 '<div class="i-tools"><button type="button" class="btn sm" data-rem-done="' + esc(r.id) + '">Done</button><button type="button" class="icon-btn" data-edit-rem="' + esc(r.id) + '" aria-label="Edit ' + esc(r.what) + '">' + ICON.edit + "</button></div>" +
                 '<div class="i-extra">' + bits.map(b => "<span>" + esc(b) + "</span>").join("") + (every ? "<span>Repeats " + esc(every) + "</span>" : "") + "</div>" +
@@ -1722,9 +1940,10 @@
             const fromOdo = s.odo && s.odo.km === km;
             return "Now " + g.fmtKm(km) + (fromOdo ? " (entered " + fmtKey(s.odo.day || dayKey(s.odo.at)) + ")" : " (from the service log)") + ".";
         }
-        function renderVehicle(key) {
+        function renderVehicle(key, part) {
             const box = $("vehicleView");
             if (typingNumber(box)) return;
+            if (phone() && part === "km" && $("phKm") && $("phKm").value) return; // a km being typed in
             if (!ready()) { box.innerHTML = loadErr ? "" : loadingHtml(); return; }
             const v = vehicleByKey(key);
             if (!v) {
@@ -1761,7 +1980,7 @@
                 let host = "";
                 try { host = link ? new URL(link).hostname.replace(/^www\./, "") : ""; } catch (e) { host = ""; }
                 const extra = f => "<span>" + (f.key === "part" && f.name === "Part number" ? "Part # " : esc(f.name) + ": ") + esc(f.text) + "</span>";
-                return '<div class="item"><div class="i-main">' + head + "</div>" +
+                return '<div class="item" data-row="item:' + esc(it.id) + '"><div class="i-main">' + head + "</div>" +
                     '<div class="i-tools"><button type="button" class="icon-btn" data-edit-item="' + esc(it.id) + '" aria-label="Edit ' + esc(g.entryTitle(it)) + '">' + ICON.edit + "</button></div>" +
                     (rest.length || link ? '<div class="i-extra">' + rest.map(extra).join("") +
                         (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(host || "Link") + "</a>" : "") + "</div>" : "") +
@@ -1772,7 +1991,7 @@
                 (gr.cat.id ? '<button type="button" class="btn sm ghost" data-add-item="' + esc(gr.cat.id) + '">+ Add</button>' : "") + "</div>" +
                 (gr.items.length ? '<div class="items">' + gr.items.map(it => itemHtml(it, gr.cat.id ? gr.cat : null)).join("") + "</div>" : "") + "</div>").join("");
 
-            const svcHtml = svc.map(e => '<div class="item"><div class="i-main"><span class="i-value">' + esc(e.what) + '</span> <span class="i-label">· ' + esc(fmtKey(e.day)) + "</span></div>" +
+            const svcHtml = svc.map(e => '<div class="item" data-row="svc:' + esc(e.id) + '"><div class="i-main"><span class="i-value">' + esc(e.what) + '</span> <span class="i-label">· ' + esc(fmtKey(e.day)) + "</span></div>" +
                 '<div class="i-tools"><button type="button" class="icon-btn" data-edit-svc="' + esc(e.id) + '" aria-label="Edit ' + esc(e.what) + '">' + ICON.edit + "</button></div>" +
                 (typeof e.km === "number" || typeof e.cost === "number" ? '<div class="i-extra">' + (typeof e.km === "number" ? "<span>" + esc(g.fmtKm(e.km)) + "</span>" : "") +
                     (typeof e.cost === "number" ? "<span>" + esc(g.fmtMoney(e.cost)) + "</span>" : "") + "</div>" : "") +
@@ -1791,6 +2010,10 @@
                 '<button type="button" class="btn sm ghost" data-oil-older style="margin-top:8px">Show older</button></div></div>';
 
             const model = g.vehicleSummary(s, cats);
+            if (phone()) {
+                box.innerHTML = phoneVehicle({ key, part, v, s, a, model, openN, probs, groups, itemHtml, svcHtml, rems, svcDue, oilCard });
+                return;
+            }
             box.innerHTML = '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
                 (!a ? "" : openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
@@ -1809,7 +2032,74 @@
                     '<div class="card"><div class="card-head"><div><h3>Changes</h3><p class="hint">Who changed what in Garage for this vehicle.</p></div></div>' + historyHtml() + "</div>" +
                 "</div></div>";
         }
-        const currentKey = () => view.startsWith("v:") ? view.slice(2) : null;
+        const currentKey = () => view.startsWith("v:") ? vParts(view)[0] : null;
+
+        // ---------- One vehicle on a phone ----------
+        // Its name, then big buttons that each open one screen (#v/{key}/{part}): Problems, Service, Update km,
+        // Parts & info, Oil checks, Ask AI; under them what needs attention, then Changes and Remove.
+        const openCats = new Set(); // the Parts & info categories opened on a phone ("12|lights")
+        function phoneVehicle(o) {
+            const { key, v, s, a, openN, probs, groups, rems, svcDue } = o;
+            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["service", "km", "parts", "changes"];
+            const part = parts.includes(o.part) ? o.part : "";
+            const km = g.currentKm(s);
+            const title = (t, sub) => '<h1 class="ph-title">' + t + '</h1><p class="ph-sub">' + (sub || esc(v.name)) + "</p>";
+            if (part === "problems") return title("Problems") +
+                '<button type="button" class="btn primary ph-big" id="addProblem">' + PI.plus + "Report a problem</button>" +
+                '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div>";
+            if (part === "service") return title("Service", esc(v.name) + " · " + esc(kmText(s))) +
+                '<div class="ph-two"><button type="button" class="btn primary" id="addSvc">+ Log a service</button><button type="button" class="btn" id="addRem">+ Reminder</button></div>' +
+                '<div class="ph-label" style="margin-top:4px">Coming up</div>' +
+                (rems.length ? '<div class="items">' + rems.map(reminderHtml).join("") + "</div>" : empty("No reminders. Add one for the next oil change at a km or a date.")) +
+                '<div class="ph-label">Done</div>' + (o.svcHtml ? '<div class="items">' + o.svcHtml + "</div>" : empty("Nothing logged yet."));
+            if (part === "parts") {
+                const filled = groups.filter(gr => gr.items.length), none = groups.filter(gr => !gr.items.length);
+                const cat = gr => {
+                    const id = key + "|" + (gr.cat.id || "_other"), n = gr.items.length;
+                    return '<details class="card ph-cat' + (n ? "" : " empty-cat") + '" data-cat-open="' + esc(id) + '"' + (openCats.has(id) ? " open" : "") + ">" +
+                        "<summary>" + esc(gr.cat.name) + '<span class="c-n">' + (n || "Empty") + "</span></summary>" +
+                        (n ? '<div class="items">' + gr.items.map(it => o.itemHtml(it, gr.cat.id ? gr.cat : null)).join("") + "</div>" : "") +
+                        (gr.cat.id ? '<button type="button" class="ph-add" data-add-item="' + esc(gr.cat.id) + '">+ Add to ' + esc(gr.cat.name) + "</button>" : "") + "</details>";
+                };
+                return title("Parts &amp; info") + filled.map(cat).join("") + (none.length ? '<div class="ph-label">Nothing saved yet</div>' + none.map(cat).join("") : "");
+            }
+            if (part === "oil") return title("Oil checks") + o.oilCard;
+            if (part === "km") return title("Update km") +
+                '<div class="ph-kmbox"><input class="input" id="phKm" data-keep inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="12" aria-label="Km on the dash" placeholder="' +
+                    esc(km !== null ? g.fmtKm(km).replace(/[^0-9,]/g, "") : "182,500") + '"><div class="muted">' + esc(kmText(s)) + " Type the km on the dash.</div></div>" +
+                '<p class="ph-kmmsg" id="phKmMsg" role="alert"></p><button type="button" class="btn primary ph-big" id="phKmSave">Save km</button>';
+            if (part === "changes") return title("Changes", esc(v.name) + " · who changed what in Garage") + '<div class="card">' + historyHtml() + "</div>";
+
+            // The vehicle's own screen
+            const nItems = groups.reduce((n, gr) => n + gr.items.length, 0);
+            const act = (sec, cls, icon, text, sub, badge) => '<button type="button" class="ph-act' + (cls ? " " + cls : "") + '" ' + (sec.startsWith("#") ? 'id="' + sec.slice(1) + '"' : 'data-sec="' + sec + '"') + ">" +
+                icon + "<span>" + text + (sub ? '<span class="a-sub">' + sub + "</span>" : "") + "</span>" + (badge ? '<span class="tab-count">' + badge + "</span>" : "") + "</button>";
+            const oil = v.inClock && a ? oilDueTag(v) : null;
+            const due = rems.filter(r => r.st.state !== "ok");
+            const attn = [];
+            if (a) probs.filter(r => r.status === "open").forEach(r => attn.push(["problems", "red", r.text]));
+            due.forEach(r => attn.push(["service", r.st.state === "overdue" ? "red" : "orange", r.what + (r.st.state === "overdue" ? " (overdue)" : " (due soon)")]));
+            if (oil && oil.due) attn.push(["oil", "red", "Oil check due"]);
+            return '<div class="ph-vhead"><h1>' + esc(v.name) + "</h1>" + (o.model ? '<div class="v-model">' + esc(o.model) + "</div>" : "") +
+                    '<div class="ph-km">' + (km !== null ? esc(g.fmtKm(km)) : "Km not known yet") + "</div></div>" +
+                '<div class="ph-acts">' +
+                    (a ? act("problems", "red", PI.warn, "Problems", openN ? openN + " open" : "Report or fix", openN) : "") +
+                    act("service", "", PI.wrench, "Service", svcDue === "overdue" ? "Overdue" : svcDue === "soon" ? "Due soon" : "Log it, see what's due") +
+                    act("km", "", PI.gauge, "Update km", km !== null ? esc(g.fmtKm(km)) + " now" : "") +
+                    act("parts", "", PI.bulb, "Parts &amp; info", nItems ? nItems + (nItems === 1 ? " thing saved" : " things saved") : "Bulbs, fluids, tires…") +
+                    (a ? act("oil", "", PI.drop, "Oil checks", oil ? oil.next === null ? "Off" : oil.next === "shift" ? "Every shift" : oil.due ? "Due" : "Next " + esc(fmtKey(oil.next)) : "") : "") +
+                    act("#askAi", "blue", PI.spark, "Ask AI", "About this vehicle") +
+                "</div>" +
+                (attn.length ? '<div class="ph-label">Needs attention</div><div class="ph-rows" style="margin-top:0">' +
+                    attn.map(([sec, st, t]) => '<button type="button" class="ph-row st-' + st + '" data-sec="' + sec + '"><span class="ph-dot"></span><span class="r-text">' + esc(short(t, 90)) + "</span>" + PI.go + "</button>").join("") + "</div>" : "") +
+                '<div class="ph-label">More</div><div class="ph-rows" style="margin-top:0">' + phRow('data-sec="changes"', PI.clock, "Changes", "Who changed what") +
+                    (a ? phRow('id="removeVehicle"', PI.trash, "Remove vehicle", "It goes to the Trash for 30 days", "danger") : "") + "</div>";
+        }
+        $("vehicleView").addEventListener("toggle", e => {
+            const d = e.target.closest && e.target.closest("[data-cat-open]");
+            if (!d) return;
+            if (d.open) openCats.add(d.dataset.catOpen); else openCats.delete(d.dataset.catOpen);
+        }, true);
 
         // ---------- Modals ----------
         function openModal(id) { $(id).classList.add("show"); setTimeout(() => { const f = $(id).querySelector("input:not([type=hidden]):not([hidden]), select, textarea:not([hidden])"); if (f && matchMedia("(min-width: 621px)").matches) f.focus(); }, 60); }
@@ -2018,20 +2308,43 @@
             catch (err) { $("rmMsg").textContent = "Couldn't delete: " + errMsg(err); }
         });
 
-        async function updateKm(key) {
-            const s = stored[key] || {}, km = g.currentKm(s);
-            const val = await ask({ title: "Update km", sub: vName(key) + " · " + kmText(s), label: "Km on the dash", number: true, max: 12, placeholder: km !== null ? String(km) : "e.g. 182500", ok: "Save",
-                check: t => {
-                    const c = g.cleanOdo({ km: t });
-                    if (!c.ok) return c.error;
-                    return km !== null && c.value.km < km ? "That's less than the " + g.fmtKm(km) + " already saved. Check the number, or fix the service log entry with the higher km." : "";
-                } });
-            if (val === null) return;
+        // What's wrong with a km typed in for a vehicle ("" when it's fine)
+        function kmError(key, t) {
+            const km = g.currentKm(stored[key] || {});
+            const c = g.cleanOdo({ km: t });
+            if (!c.ok) return c.error;
+            return km !== null && c.value.km < km ? "That's less than the " + g.fmtKm(km) + " already saved. Check the number, or fix the service log entry with the higher km." : "";
+        }
+        async function saveKm(key, val) {
             const c = g.cleanOdo({ km: val });
             try {
                 await write(withName(key, { [G.vehicles + "/" + key + "/odo"]: { km: c.value.km, day: today(), at: serverTimestamp(), by: by() } }), { vkey: key, text: "Km updated to " + g.fmtKm(c.value.km) });
                 toast("Saved: " + g.fmtKm(c.value.km) + ".");
-            } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
+                return true;
+            } catch (err) { toast("Couldn't save: " + errMsg(err), true); return false; }
+        }
+        async function updateKm(key) {
+            const s = stored[key] || {}, km = g.currentKm(s);
+            const val = await ask({ title: "Update km", sub: vName(key) + " · " + kmText(s), label: "Km on the dash", number: true, max: 12, placeholder: km !== null ? String(km) : "e.g. 182500", ok: "Save",
+                check: t => kmError(key, t) });
+            if (val === null) return;
+            await saveKm(key, val);
+        }
+        // The Update km screen on a phone: saved, it goes back to the vehicle
+        async function phoneKm(key) {
+            const box = $("phKm"), msg = $("phKmMsg"), btn = $("phKmSave");
+            if (!box || btn.disabled) return;
+            const bad = kmError(key, box.value);
+            msg.textContent = bad;
+            if (bad) return;
+            btn.disabled = true;
+            const ok = await saveKm(key, box.value);
+            btn.disabled = false;
+            if (!ok) return;
+            box.value = "";
+            box.blur();
+            go("v:" + key, false);
+            history_.replaceState(null, "", hashFor("v:" + key));
         }
 
         // Removing a vehicle hides it in Garage and puts what was saved for it in the Trash. It stays on the time clock.
@@ -2073,6 +2386,16 @@
                 return;
             }
             if (e.target.closest("[data-oil-older]")) { showOlderOil(); return; }
+            // The phone layout: its big buttons, the Update km screen, and tapping an entry to change it
+            const sec = e.target.closest("[data-sec]");
+            if (sec) { go("v:" + key + "/" + sec.dataset.sec, true); return; }
+            if (e.target.closest("#phKmSave")) { phoneKm(key); return; }
+            const row = phone() && !e.target.closest("button, a, summary, input, textarea, select") ? e.target.closest("[data-row]") : null;
+            if (row) {
+                const r = row.dataset.row, i = r.indexOf(":"), kind = r.slice(0, i), id = r.slice(i + 1);
+                if (kind === "item") openItem(key, id); else if (kind === "svc") openSvc(key, id); else if (kind === "rem") openRem(key, id);
+                return;
+            }
             if (e.target.closest("#addSvc")) openSvc(key, null);
             else if (e.target.closest("#addRem")) openRem(key, null);
             else if (e.target.closest("#addProblem")) addProblem(key);
@@ -2080,6 +2403,9 @@
             else if (e.target.closest("#odoBtn")) updateKm(key);
             else if (e.target.closest("#removeVehicle") && isAdmin()) removeVehicle(key);
         });
+
+        $("vehicleView").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "phKm") { e.preventDefault(); const k = currentKey(); if (k) phoneKm(k); } });
+        $("vehicleView").addEventListener("input", e => { if (e.target.id === "phKm") $("phKmMsg").textContent = ""; });
 
         // ---------- Ask AI ----------
         // The question and the checked parts of the vehicle's records are copied, then the AI opens in a new tab (on a
