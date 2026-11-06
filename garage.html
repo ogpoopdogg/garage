@@ -394,7 +394,6 @@
             .cat-row .input { flex-basis: 100%; width: 0; }
             .cat-row .cat-fields { max-width: none; flex: 1; width: 0; }
             .fld-row .fld-kind { display: none; }
-            .admin-link .al-long { display: none; }
             .card { padding: 16px; }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -410,7 +409,6 @@
         </a>
         <div class="top-right">
             <button type="button" class="btn sm" id="installBtn" hidden>Install app</button>
-            <a class="btn ghost sm admin-link" href="../timeclock/admin.html" id="adminLink" hidden><span class="al-long">Time clock </span>Admin</a>
             <button type="button" class="btn ghost sm" id="signOutBtn" hidden>Sign out</button>
         </div>
     </header>
@@ -752,7 +750,6 @@
         function show(screen) {
             ["bootScreen", "gateScreen", "appScreen"].forEach(id => { $(id).hidden = id !== screen; });
             $("signOutBtn").hidden = !user;
-            $("adminLink").hidden = screen !== "appScreen";
         }
         let toastTimer = null;
         function toast(text, warn) {
