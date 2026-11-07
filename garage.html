@@ -14,7 +14,11 @@
     <meta name="apple-mobile-web-app-title" content="Garage">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- The fonts load without holding up the page (it shows in the fallback font for a moment on a first visit) -->
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet"></noscript>
+    <link rel="modulepreload" href="garage-core.js">
+    <link rel="modulepreload" href="../timeclock/tc-core.js">
     <style>
         /* Same look as the time clock admin panel (timeclock/admin.html) */
         :root {
@@ -115,8 +119,37 @@
         }
         .tab[aria-selected="true"] .tab-count { background: rgba(0, 0, 0, 0.15); color: #111; }
 
-        .panel { animation: panelIn 0.5s var(--ease-out) both; padding-bottom: 60px; }
+        .panel { padding-bottom: 60px; }
         @keyframes panelIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        /* Moving between screens: deeper slides in from the right, back from the left, the rest fades up. The
+           cards and tiles of the new screen come in one after another. Only when a screen opens, never on a redraw. */
+        @keyframes enterFwd { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+        @keyframes enterBack { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+        @keyframes popIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+        .enter-fwd { animation: enterFwd 0.34s var(--ease-out) both; }
+        .enter-back { animation: enterBack 0.34s var(--ease-out) both; }
+        .enter-up { animation: panelIn 0.4s var(--ease-out) both; }
+        .entering :is(.v-card, .ph-tile, .ph-act, .ph-rows, .card, .entry) { animation: popIn 0.42s var(--ease-out) both; }
+        .entering :is(.v-card, .ph-tile, .ph-act):nth-child(2), .entering .card:nth-child(2) { animation-delay: 30ms; }
+        .entering :is(.v-card, .ph-tile, .ph-act):nth-child(3), .entering .card:nth-child(3) { animation-delay: 60ms; }
+        .entering :is(.v-card, .ph-tile, .ph-act):nth-child(4), .entering .card:nth-child(4) { animation-delay: 90ms; }
+        .entering :is(.v-card, .ph-tile, .ph-act):nth-child(5) { animation-delay: 120ms; }
+        .entering :is(.v-card, .ph-tile, .ph-act):nth-child(6) { animation-delay: 150ms; }
+        .entering :is(.v-card, .ph-tile):nth-child(n+7) { animation-delay: 180ms; }
+        .entering .ph-rows { animation-delay: 160ms; }
+        /* Taps answer at once: no grey flash, no double-tap zoom wait, and a press you can see */
+        button, a, summary, .v-card, .ph-tile, .ph-act, .ph-row { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        .ph-tile, .ph-act, .ph-row, .v-card { transition: transform 0.18s var(--ease-out), background 0.18s, box-shadow 0.25s; }
+        .ph-row:active { background: rgba(255, 255, 255, 0.05); }
+        .ph-tile:active, .ph-act:active { transform: scale(0.97); background: var(--asphalt-3); }
+        /* "Saved" and other short notes, and a new version waiting */
+        .update-bar {
+            position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 110; transform: translate(-50%, -150%);
+            display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 14px; max-width: calc(100vw - 24px);
+            background: rgba(31, 35, 39, 0.98); box-shadow: 0 0 0 1px rgba(255, 204, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.55);
+            transition: transform 0.5s var(--ease-spring); font-size: 0.95rem;
+        }
+        .update-bar.show { transform: translate(-50%, 0); }
         .panel-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
         .panel-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 5vw, 2.8rem); line-height: 0.95; }
         .panel-sub { color: var(--muted); margin-top: 4px; }
@@ -182,7 +215,6 @@
         .v-card {
             display: block; width: 100%; text-align: left; cursor: pointer; border: 0; color: inherit;
             padding: 16px; border-radius: 16px; background: var(--asphalt-2); box-shadow: inset 0 0 0 1px var(--line);
-            animation: panelIn 0.45s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 30ms);
             transition: box-shadow 0.3s, transform 0.3s var(--ease-out);
         }
         .v-card:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px var(--shoulder), 0 14px 30px rgba(0, 0, 0, 0.35); }
@@ -338,9 +370,9 @@
         .modal-backdrop {
             position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px;
             background: rgba(0, 0, 0, 0.62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-            opacity: 0; pointer-events: none; transition: opacity 0.3s var(--ease-out);
+            opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s var(--ease-out), visibility 0s linear 0.3s;
         }
-        .modal-backdrop.show { opacity: 1; pointer-events: auto; }
+        .modal-backdrop.show { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity 0.3s var(--ease-out); }
         #askModal { z-index: 95; }
         .modal {
             width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; border-radius: 20px; padding: 22px;
@@ -357,7 +389,7 @@
         .modal-msg { color: var(--red); min-height: 1.4em; font-size: 0.92rem; margin: 2px 0 8px; }
 
         /* ---------- Sign in / gate ---------- */
-        .gate { min-height: calc(100vh - 120px); display: grid; place-items: center; padding: 20px 0 60px; }
+        .gate { min-height: calc(100vh - 120px); min-height: calc(100dvh - 120px); display: grid; place-items: center; padding-top: 20px; padding-bottom: 60px; }
         .gate-card {
             width: 100%; max-width: 420px; padding: clamp(26px, 6vw, 40px); border-radius: 22px; position: relative; overflow: hidden;
             background: linear-gradient(180deg, var(--asphalt-2), var(--asphalt)); box-shadow: 0 0 0 1px var(--line), 0 30px 80px rgba(0, 0, 0, 0.5);
@@ -494,9 +526,9 @@
         body.phone .look-grid[data-show="vans"] > .card:nth-child(2), body.phone .look-grid[data-show="oil"] > .card:nth-child(1) { display: none; }
         body.phone .look-grid > .card > .hint { display: none; }
         /* Windows fill the screen, with Save at the bottom where a thumb is */
-        body.phone .modal-backdrop { padding: 0; place-items: stretch; }
+        body.phone .modal-backdrop { padding: 0; place-items: stretch; backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(0, 0, 0, 0.75); }
         body.phone .modal {
-            width: 100%; max-height: none; height: 100%; border-radius: 0; display: flex; flex-direction: column;
+            width: 100%; max-height: none; height: 100%; border-radius: 0; display: flex; flex-direction: column; overscroll-behavior: contain;
             padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px 0; transform: translateY(24px);
         }
         body.phone .modal-backdrop.show .modal { transform: none; }
@@ -812,6 +844,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="update-bar" id="updateBar" role="status"><span>Garage was updated.</span><button type="button" class="btn sm primary" id="updateBtn">Reload</button></div>
 
     <script type="module">
         // The time clock's shared code (sign-in, vehicle list, oil check rules) comes from the time clock itself,
@@ -843,6 +876,15 @@
         const { ref, onValue, get, update, push, query, orderByChild, startAt, endAt, limitToLast, serverTimestamp } = fd;
 
         const $ = id => document.getElementById(id);
+        // Redraws only what changed: a part of the page is rebuilt only when its HTML is different from last time,
+        // so new data doesn't make the screen flicker, and taps, open sections and typing aren't interrupted
+        const drawn = new WeakMap();
+        function setHtml(el, html) {
+            if (drawn.get(el) === html) return false;
+            drawn.set(el, html);
+            el.innerHTML = html;
+            return true;
+        }
         // Phones get their own layout (body.phone): big buttons, one job per screen. The computer layout is unchanged.
         const phoneMq = matchMedia("(max-width: 700px)");
         const phone = () => phoneMq.matches;
@@ -1260,7 +1302,14 @@
         const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
         const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
         let installPrompt = null;
-        if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(err => console.warn("Service worker:", err));
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("sw.js").catch(err => console.warn("Service worker:", err));
+            // Garage opens from the copy saved on this device; when a newer version was downloaded, offer to reload
+            navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.type === "garage-updated") $("updateBar").classList.add("show"); });
+            if (navigator.serviceWorker.startMessages) navigator.serviceWorker.startMessages();
+            navigator.serviceWorker.ready.then(r => { if (r.active) r.active.postMessage({ type: "garage-check", since: Date.now() - performance.now() }); }).catch(() => {});
+        }
+        $("updateBtn").addEventListener("click", () => location.reload());
         $("installBtn").hidden = standalone() || !isIOS;
         window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; $("installBtn").hidden = standalone(); });
         window.addEventListener("appinstalled", () => { installPrompt = null; $("installBtn").hidden = true; });
@@ -1279,8 +1328,34 @@
         const tabs = Array.from(document.querySelectorAll(".tab"));
         const PANELS = ["vehicles", "look", "oil", "categories", "trash"];
         const PANELS_FOR = () => isAdmin() ? PANELS : ["vehicles", "trash"];
+        // Screen changes: which way the new screen slides in, and where it scrolls to (the top when going deeper, back
+        // to where you were when going back)
+        const depth = v => v === "vehicles" ? 0 : v.startsWith("v:") ? (vParts(v)[1] ? 2 : 1) : 1;
+        const scrollMem = new Map();
+        let pendingNav = null;
+        function afterNav() {
+            const n = pendingNav;
+            if (!n) return;
+            pendingNav = null;
+            const panel = view.startsWith("v:") ? $("panel-vehicle") : $("panel-" + view);
+            if (panel) {
+                panel.classList.remove("enter-fwd", "enter-back", "enter-up", "entering");
+                void panel.offsetWidth; // starts the animation again
+                panel.classList.add(n.dir, "entering");
+                clearTimeout(panel._enterTimer);
+                panel._enterTimer = setTimeout(() => panel.classList.remove("entering"), 700);
+            }
+            window.scrollTo(0, n.scroll);
+        }
         function go(v, push) {
             if (!v.startsWith("v:") && !PANELS_FOR().includes(v)) v = "vehicles";
+            if (v !== view || !pendingNav) {
+                const back = depth(v) < depth(view) || (depth(v) === depth(view) && v !== view && scrollMem.has(v) && !push);
+                if (v !== view) scrollMem.set(view, window.scrollY);
+                pendingNav = { dir: v === view ? "enter-up" : depth(v) > depth(view) ? "enter-fwd" : back ? "enter-back" : "enter-up",
+                    scroll: depth(v) < depth(view) ? scrollMem.get(v) || 0 : v === view ? window.scrollY : 0 };
+            }
+            const from = view;
             view = v;
             const isVehicle = v.startsWith("v:");
             const tab = isVehicle ? "vehicles" : v;
@@ -1288,12 +1363,12 @@
             PANELS.forEach(p => { $("panel-" + p).hidden = isVehicle || p !== v; });
             $("panel-vehicle").hidden = !isVehicle;
             const hash = hashFor(v);
-            if (push && location.hash !== hash) history_.pushState(null, "", hash);
+            if (push && location.hash !== hash) history_.pushState({ from: from }, "", hash);
             syncHistory();
             render();
-            if (push) window.scrollTo(0, 0);
         }
         const history_ = window.history;
+        try { history_.scrollRestoration = "manual"; } catch (e) { /* older browsers: they scroll by themselves */ }
         function hashFor(v) {
             if (!v.startsWith("v:")) return "#" + v;
             const [k, part] = vParts(v);
@@ -1320,7 +1395,12 @@
             b.dataset.to = to;
             $("phoneBackText").textContent = text;
         }
-        $("phoneBack").addEventListener("click", () => go($("phoneBack").dataset.to || "vehicles", true));
+        // Back goes back in the browser's history when that's where this screen was opened from, so the phone's own
+        // back button or swipe and this one agree
+        $("phoneBack").addEventListener("click", () => {
+            const to = $("phoneBack").dataset.to || "vehicles";
+            if (history_.state && history_.state.from === to) history_.back(); else go(to, true);
+        });
         // The big rows on a phone's home screen open the other sections
         $("phoneHome").addEventListener("click", e => {
             const b = e.target.closest("[data-go]");
@@ -1347,8 +1427,9 @@
             requestAnimationFrame(() => {
                 renderQueued = false;
                 if (!user || $("appScreen").hidden) return;
+                try {
                 renderBanner();
-                const look = lookData();
+                const look = lookCache = lookData();
                 // The tab counts the problems not read yet and the missed oil checks not read yet
                 $("lookCount").hidden = !(look.openVans + look.openOils);
                 $("lookCount").textContent = look.openVans + look.openOils;
@@ -1360,6 +1441,8 @@
                 else renderVehicle(...vParts(view));
                 renderBack();
                 if ($("aiModal").classList.contains("show")) aiRender();
+                } finally { lookCache = null; }
+                afterNav();
             });
         }
         function renderBanner() {
@@ -1410,16 +1493,16 @@
         }
         const typingNumber = box => box.contains(document.activeElement) && document.activeElement.matches("input[type=number], [data-keep]");
         function renderOilPlan() {
-            $("allHistOil").innerHTML = historyHtml();
+            setHtml($("allHistOil"), historyHtml());
             const box = $("oilRows");
             if (typingNumber(box)) return;
-            if (!ready()) { box.innerHTML = loadingHtml(); return; }
+            if (!ready()) { setHtml(box, loadingHtml()); return; }
             const def = cleanOilPlan(oilPlans.def);
             const rows = ['<div class="oil-row def" data-oil=""><div class="oil-head"><strong>All vehicles</strong><span class="muted">Used by every vehicle set to "Same as all vehicles"</span></div>' +
                 '<div class="oil-ctl">' + oilControls(def) + "</div></div>"];
             for (const v of vehicles.filter(v => v.inClock)) rows.push(oilRow(v, def));
             if (rows.length === 1) rows.push('<p class="hint" style="margin:0">No vehicles yet. Each vehicle drivers can pick on the time clock shows up here.</p>');
-            box.innerHTML = rows.join("");
+            setHtml(box, rows.join(""));
         }
         // The plan a row's controls describe (null: same as all vehicles)
         function oilPlanFromRow(row, changedMode) {
@@ -1466,7 +1549,9 @@
         });
 
         // ---------- Vehicle problems and oil checks (Vehicle checks tab and each vehicle) ----------
+        let lookCache = null; // lookData() for the redraw going on (worked out once, not once per part of the page)
         function lookData() {
+            if (lookCache) return lookCache;
             const vans = g.problemMarks(g.reportList(reports, vanKey), problemReads, problemCleared);
             const loadedOils = g.oilList(shiftsByEk, now() - oilDays * 86400000, oilState, vanKey);
             const have = new Set(loadedOils.map(o => o.ek + "|" + o.s.id));
@@ -1580,15 +1665,15 @@
             $("lookOilCount").hidden = !d.openOils; $("lookOilCount").textContent = d.openOils;
             $("segVanCount").hidden = !d.openVans; $("segVanCount").textContent = d.openVans;
             $("segOilCount").hidden = !d.openOils; $("segOilCount").textContent = d.openOils;
-            if (!ready()) { $("lookVans").innerHTML = loadingHtml(); return; }
+            if (!ready()) { setHtml($("lookVans"), loadingHtml()); return; }
             // Problems: the ones not cleared, or with a search, every one it finds
             const pq = $("probSearch").value;
             const probs = probSearching() ? d.vans.filter(r => g.matchesAll(pq, g.problemWords(r))) : d.vans.filter(r => !r.cleared);
             const probCleared = probSearching() ? probs.filter(r => r.cleared).length : 0;
             $("probNote").hidden = !probSearching();
             $("probNote").textContent = probs.length + (probs.length === 1 ? " problem found" : " problems found") + (probCleared ? ", " + probCleared + " of them cleared. Tap a cleared one to bring it back." : ".");
-            $("lookVans").innerHTML = probs.slice(0, SEARCH_MAX).map(r => problemHtml(r, true)).join("") ||
-                empty(probSearching() ? "No problems match that search." : d.vans.length ? "Every problem has been cleared. Search finds them." : "No vehicle problems reported yet.");
+            setHtml($("lookVans"), probs.slice(0, SEARCH_MAX).map(r => problemHtml(r, true)).join("") ||
+                empty(probSearching() ? "No problems match that search." : d.vans.length ? "Every problem has been cleared. Search finds them." : "No vehicle problems reported yet."));
 
             // Oil checks: missed and on-the-clock first, checked ones after; with a search, every one it finds, newest first
             const searching = oilSearching();
@@ -1604,8 +1689,8 @@
                     : n + (n === 1 ? " oil check" : " oil checks") + " found in " + where + (nc ? ", " + nc + " of them cleared. Tap a cleared one to bring it back." : ".") +
                         (n > SEARCH_MAX ? " Showing the newest " + SEARCH_MAX + "." : "");
             }
-            $("lookOil").innerHTML = searching && !found ? loadingHtml() : list.slice(0, SEARCH_MAX).map(o => oilHtml(o, true)).join("") ||
-                empty(searching ? "No oil checks match that search." : loaded.employees ? "No oil checks to show. Cleared ones and older ones are found by search." : "Loading…");
+            setHtml($("lookOil"), searching && !found ? loadingHtml() : list.slice(0, SEARCH_MAX).map(o => oilHtml(o, true)).join("") ||
+                empty(searching ? "No oil checks match that search." : loaded.employees ? "No oil checks to show. Cleared ones and older ones are found by search." : "Loading…"));
         }
 
         // ---------- The date range calendar ----------
@@ -1820,27 +1905,27 @@
             const q = $("search").value;
             const box = $("vehicleList");
             $("chips").hidden = !!q.trim();
-            $("phoneHome").innerHTML = "";
-            if (!ready()) { box.innerHTML = loadingHtml(); $("chips").innerHTML = ""; return; }
+            if (!phone() || q.trim() || !ready()) setHtml($("phoneHome"), "");
+            if (!ready()) { setHtml(box, loadingHtml()); setHtml($("chips"), ""); return; }
             if (q.trim()) {
                 const hits = g.searchGarage(q, vehicles, stored, cats);
-                box.innerHTML = hits.length ? '<div class="results">' + hits.map(h => {
+                setHtml(box, hits.length ? '<div class="results">' + hits.map(h => {
                     const e = h.entry;
                     const title = g.entryTitle(e);
                     const what = h.kind === "item" ? esc(title) + (e.label && e.value ? " <span>· " + esc(e.value) + "</span>" : "") + (e.part && e.part !== title ? " <span>· #" + esc(e.part) + "</span>" : "")
                         : h.kind === "service" ? esc(e.what) + " <span>· " + esc(fmtKey(e.day)) + "</span>"
                         : esc(e.what) + (e.dueDay ? " <span>· " + esc(fmtKey(e.dueDay)) + "</span>" : "") + (typeof e.dueKm === "number" ? " <span>· " + esc(g.fmtKm(e.dueKm)) + "</span>" : "");
                     return '<button type="button" class="result" data-open="' + esc(h.vehicle.key) + '"><div><div class="r-where">' + esc(h.vehicle.name) + " · " + esc(h.catName) + '</div><div class="r-what">' + what + "</div></div></button>";
-                }).join("") + "</div>" : empty("Nothing saved matches “" + esc(q.trim()) + "”.");
+                }).join("") + "</div>" : empty("Nothing saved matches “" + esc(q.trim()) + "”."));
                 return;
             }
             const info = vehicleInfo();
             if (phone()) { renderPhoneHome(info); return; }
             const f = filtersFor().find(x => x[0] === filter) || FILTERS[0];
-            $("chips").innerHTML = filtersFor().map(([id, label, fn]) => {
+            setHtml($("chips"), filtersFor().map(([id, label, fn]) => {
                 const n = id === "all" ? 0 : info.filter(fn).length;
                 return '<button type="button" class="chip" data-filter="' + id + '" aria-pressed="' + (id === f[0]) + '">' + label + (n ? ' <span class="n">' + n + "</span>" : "") + "</button>";
-            }).join("");
+            }).join(""));
             const card = (x, i) => {
                 const v = x.v, s = stored[v.key] || {}, n = Object.keys(s.items || {}).length, sv = Object.keys(s.service || {}).length;
                 const shown = v.inClock || v.listed;
@@ -1852,9 +1937,9 @@
             };
             const list = info.filter(f[2]);
             const main = list.filter(x => x.v.inClock || x.v.listed), gone = list.filter(x => !x.v.inClock && !x.v.listed);
-            box.innerHTML = (main.length ? '<div class="v-grid">' + main.map(card).join("") + "</div>"
+            setHtml(box, (main.length ? '<div class="v-grid">' + main.map(card).join("") + "</div>"
                 : empty(f[0] !== "all" ? "No vehicles with " + esc(f[1].toLowerCase()) + "." : isAdmin() ? "No vehicles yet. Add one with + Add vehicle, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them.")) +
-                (gone.length ? '<h2 class="section-title">No longer in the van list</h2><div class="v-grid">' + gone.map(card).join("") + "</div>" : "");
+                (gone.length ? '<h2 class="section-title">No longer in the van list</h2><div class="v-grid">' + gone.map(card).join("") + "</div>" : ""));
         }
         // How a vehicle stands, for its tile on a phone: red (a problem, service overdue, oil check due), orange (service
         // due soon), green (all good), grey (no longer in the van list)
@@ -1873,16 +1958,16 @@
             const tiles = info.map(x => Object.assign({ t: tileState(x) }, x)).sort((a, b) => ST_ORDER[a.t.st] - ST_ORDER[b.t.st]);
             const tile = x => '<button type="button" class="ph-tile st-' + x.t.st + (x.t.st === "grey" ? " gone" : "") + '" data-open="' + esc(x.v.key) + '">' +
                 '<span class="t-name">' + esc(x.v.name) + '</span><span class="t-st">' + esc(x.t.text) + "</span></button>";
-            $("vehicleList").innerHTML = tiles.length ? '<div class="ph-tiles">' + tiles.map(tile).join("") + "</div>"
-                : empty(isAdmin() ? "No vehicles yet. Add one below, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them.");
+            setHtml($("vehicleList"), tiles.length ? '<div class="ph-tiles">' + tiles.map(tile).join("") + "</div>"
+                : empty(isAdmin() ? "No vehicles yet. Add one below, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them."));
             const look = isAdmin() ? lookData() : null, n = look ? look.openVans + look.openOils : 0;
-            $("phoneHome").innerHTML = '<div class="ph-rows">' +
+            setHtml($("phoneHome"), '<div class="ph-rows">' +
                 (isAdmin() ? phRow('data-go="look"', PI.warn, "Vehicle checks", n ? n + " new" : "Problems drivers reported, and oil checks") +
                     phRow('data-go="oil"', PI.drop, "Oil check schedule", "How often drivers check the oil") +
                     phRow('data-go="categories"', PI.list, "Categories", "The sections of Parts &amp; info") : "") +
                 phRow('data-go="trash"', PI.trash, "Trash", "Put deleted things back") +
                 (isAdmin() ? phRow('data-go="add"', PI.plus, "Add a vehicle", "") : "") +
-                phRow('data-go="export"', PI.down, "Export spreadsheet", "Everything, as a backup") + "</div>";
+                phRow('data-go="export"', PI.down, "Export spreadsheet", "Everything, as a backup") + "</div>");
         }
         $("search").addEventListener("input", render);
         $("chips").addEventListener("click", e => { const c = e.target.closest("[data-filter]"); if (c) { filter = c.dataset.filter; render(); } });
@@ -1944,11 +2029,11 @@
             const box = $("vehicleView");
             if (typingNumber(box)) return;
             if (phone() && part === "km" && $("phKm") && $("phKm").value) return; // a km being typed in
-            if (!ready()) { box.innerHTML = loadErr ? "" : loadingHtml(); return; }
+            if (!ready()) { setHtml(box, loadErr ? "" : loadingHtml()); return; }
             const v = vehicleByKey(key);
             if (!v) {
                 const gone = stored[key] && stored[key].removed;
-                box.innerHTML = empty(gone ? "This vehicle was removed from Garage. You can put it back from the Trash tab." : "There's no vehicle " + esc(key) + " in Garage.");
+                setHtml(box, empty(gone ? "This vehicle was removed from Garage. You can put it back from the Trash tab." : "There's no vehicle " + esc(key) + " in Garage."));
                 return;
             }
             const s = stored[key] || {};
@@ -2011,10 +2096,10 @@
 
             const model = g.vehicleSummary(s, cats);
             if (phone()) {
-                box.innerHTML = phoneVehicle({ key, part, v, s, a, model, openN, probs, groups, itemHtml, svcHtml, rems, svcDue, oilCard });
+                setHtml(box, phoneVehicle({ key, part, v, s, a, model, openN, probs, groups, itemHtml, svcHtml, rems, svcDue, oilCard }));
                 return;
             }
-            box.innerHTML = '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
+            setHtml(box, '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
                 (!a ? "" : openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
                 (v.inClock && a ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
@@ -2030,7 +2115,7 @@
                         (svcHtml ? '<div class="items">' + svcHtml + "</div>" : empty("Nothing logged yet.")) + "</div>" +
                     oilCard +
                     '<div class="card"><div class="card-head"><div><h3>Changes</h3><p class="hint">Who changed what in Garage for this vehicle.</p></div></div>' + historyHtml() + "</div>" +
-                "</div></div>";
+                "</div></div>");
         }
         const currentKey = () => view.startsWith("v:") ? vParts(view)[0] : null;
 
@@ -2437,9 +2522,9 @@
                         : '<p class="grp hint">No ' + esc(g.AI_GROUPS[gr].toLowerCase()) + ".</p>";
                 html += box(p);
             }
-            $("aiParts").innerHTML = html;
+            setHtml($("aiParts"), html);
             const last = g.AI_TARGETS.some(t => t.key === saved.target) ? saved.target : "gemini";
-            $("aiGo").innerHTML = g.AI_TARGETS.map(t => '<button type="button" class="btn' + (t.key === last ? " primary" : "") + '" data-ai="' + t.key + '">' + esc(t.name) + "</button>").join("");
+            setHtml($("aiGo"), g.AI_TARGETS.map(t => '<button type="button" class="btn' + (t.key === last ? " primary" : "") + '" data-ai="' + t.key + '">' + esc(t.name) + "</button>").join(""));
             $("aiPreview").open = false;
             aiRender();
             openModal("aiModal");
@@ -2461,8 +2546,8 @@
                 const kids = boxes.filter(b => b.dataset.in === gb.dataset.group), k = kids.filter(b => b.checked).length;
                 gb.checked = k === kids.length; gb.indeterminate = k > 0 && k < kids.length;
             });
-            $("aiMissing").innerHTML = g.vehicleSummary(stored[aiKey], cats) ? "" :
-                '<div class="ai-missing"><span>No year, make or model saved for this vehicle. The AI gives better answers with them (or with the VIN).</span>' + (isAdmin() || g.vehicleCat(cats) ? '<button type="button" class="btn sm" id="aiAddModel">Add them</button>' : "") + "</div>";
+            setHtml($("aiMissing"), g.vehicleSummary(stored[aiKey], cats) ? "" :
+                '<div class="ai-missing"><span>No year, make or model saved for this vehicle. The AI gives better answers with them (or with the VIN).</span>' + (isAdmin() || g.vehicleCat(cats) ? '<button type="button" class="btn sm" id="aiAddModel">Add them</button>' : "") + "</div>");
             const text = aiBuild();
             $("aiText").value = text;
             $("aiCount").textContent = "(" + text.length.toLocaleString("en-CA") + " characters)";
@@ -2540,15 +2625,15 @@
         }
         function renderTrash() {
             const box = $("trashList");
-            if (!ready()) { box.innerHTML = loadingHtml(); return; }
+            if (!ready()) { setHtml(box, loadingHtml()); return; }
             const list = g.trashList(trash), a = isAdmin();
-            box.innerHTML = list.map(t => '<div class="entry"><div class="e-top"><span class="e-who">' + KIND[t.kind] + (t.kind === "vehicle" ? "" : " · " + vehicleLink(t.vkey, t.vname || t.vkey)) +
+            setHtml(box, list.map(t => '<div class="entry"><div class="e-top"><span class="e-who">' + KIND[t.kind] + (t.kind === "vehicle" ? "" : " · " + vehicleLink(t.vkey, t.vname || t.vkey)) +
                 '</span><span class="e-when">' + esc(ago(t.at)) + "</span></div>" +
                 '<div class="e-what">' + esc(trashText(t)) + "</div>" +
                 '<div class="e-detail">Deleted by ' + esc((t.by || "").split("@")[0]) + ". Gone for good on " + esc(fmtKey(dayKey(t.at + g.TRASH_DAYS * 86400000))) + ".</div>" +
                 (a ? '<div class="e-actions"><button type="button" class="btn sm primary" data-restore="' + esc(t.tid) + '">Put back</button><button type="button" class="btn sm danger" data-purge="' + esc(t.tid) + '">Delete for good</button></div>'
                     : t.kind === "vehicle" ? '<div class="e-detail">An admin can put a vehicle back.</div>' : '<div class="e-actions"><button type="button" class="btn sm primary" data-restore="' + esc(t.tid) + '">Put back</button></div>') + "</div>").join("") ||
-                empty("The Trash is empty.");
+                empty("The Trash is empty."));
         }
         $("trashList").addEventListener("click", async e => {
             const rb = e.target.closest("[data-restore]"), pb = e.target.closest("[data-purge]");
@@ -2572,20 +2657,20 @@
 
         // ---------- Categories ----------
         function renderCategories() {
-            $("allHistCat").innerHTML = historyHtml();
+            setHtml($("allHistCat"), historyHtml());
             const box = $("catRows");
             if (box.contains(document.activeElement)) return; // renaming one
-            if (!ready()) { box.innerHTML = loadingHtml(); return; }
+            if (!ready()) { setHtml(box, loadingHtml()); return; }
             const used = {};
             for (const s of Object.values(stored)) for (const it of Object.values((s && s.items) || {})) if (it && it.cat) used[it.cat] = (used[it.cat] || 0) + 1;
-            box.innerHTML = cats.map((c, i) => '<div class="cat-row" data-cat="' + esc(c.id) + '">' +
+            setHtml(box, cats.map((c, i) => '<div class="cat-row" data-cat="' + esc(c.id) + '">' +
                 '<input class="input" value="' + esc(c.name) + '" maxlength="40" aria-label="Category name">' +
                 '<button type="button" class="btn sm ghost cat-fields" data-fields title="Fields: ' + esc(g.fieldsText(c.fields)) + '"><span>Fields: ' + esc(g.fieldsText(c.fields)) + "</span></button>" +
                 '<span class="count">' + (used[c.id] || 0) + "</span>" +
                 '<button type="button" class="icon-btn" data-move="-1" aria-label="Move up"' + (i ? "" : " disabled") + ">" + ICON.up + "</button>" +
                 '<button type="button" class="icon-btn" data-move="1" aria-label="Move down"' + (i < cats.length - 1 ? "" : " disabled") + ">" + ICON.down + "</button>" +
                 '<button type="button" class="icon-btn" data-del-cat aria-label="Delete ' + esc(c.name) + '">' + ICON.del + "</button></div>").join("") ||
-                empty("No categories. Add one below.");
+                empty("No categories. Add one below."));
             box.dataset.used = JSON.stringify(used);
         }
         const ALL = g.HISTORY_ALL;
