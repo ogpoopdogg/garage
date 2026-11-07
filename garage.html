@@ -456,11 +456,15 @@
         .ph-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
         .ph-tile {
             display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 112px; padding: 14px; border: 0; border-radius: 16px; cursor: pointer;
-            text-align: left; color: inherit; background: var(--asphalt-2); box-shadow: inset 0 5px 0 var(--st, var(--green)), inset 0 0 0 1px var(--line);
+            text-align: left; color: inherit; background: var(--asphalt-2); box-shadow: inset 0 5px 0 var(--green), inset 0 0 0 1px var(--line);
         }
         .ph-tile:active { transform: scale(0.98); }
+        .ph-tile .t-st .t-red { color: var(--red); }
+        .ph-tile .t-st .t-orange { color: var(--orange); }
         .ph-tile .t-name { font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1; overflow-wrap: anywhere; }
-        .ph-tile .t-st { font-size: 0.92rem; font-weight: 600; color: var(--st, var(--green)); line-height: 1.25; }
+        .ph-tile .t-st { font-size: 0.92rem; font-weight: 600; color: var(--muted); line-height: 1.25; }
+        .ph-tile.st-green .t-st { color: var(--green); }
+        .ph-tile.st-grey .t-st { color: var(--dim); }
         .ph-tile.gone { opacity: 0.7; }
         .st-red { --st: var(--red); }
         .st-orange { --st: var(--orange); }
@@ -1941,23 +1945,24 @@
                 : empty(f[0] !== "all" ? "No vehicles with " + esc(f[1].toLowerCase()) + "." : isAdmin() ? "No vehicles yet. Add one with + Add vehicle, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them.")) +
                 (gone.length ? '<h2 class="section-title">No longer in the van list</h2><div class="v-grid">' + gone.map(card).join("") + "</div>" : ""));
         }
-        // How a vehicle stands, for its tile on a phone: red (a problem, service overdue, oil check due), orange (service
-        // due soon), green (all good), grey (no longer in the van list)
+        // How a vehicle stands, for its tile on a phone. Every tile is green; only its line of text says more: the
+        // problems in red, service and oil checks due in orange, "All good" in green, grey when no longer in the van list.
+        // st puts the ones that need something first (red, then orange).
         function tileState(x) {
             const bits = [];
             let st = "green";
-            if (x.open) { bits.push(x.open + (x.open === 1 ? " problem" : " problems")); st = "red"; }
-            if (x.svc === "overdue") { bits.push("Service overdue"); st = "red"; }
-            if (x.oil && x.oil.due) { bits.push("Oil check due"); st = "red"; }
-            if (x.svc === "soon") { bits.push("Service due soon"); if (st === "green") st = "orange"; }
-            if (!x.v.inClock && !x.v.listed) return { st: "grey", text: "Not in the van list" };
-            return { st: st, text: bits.length ? bits.join(" · ") : "All good" };
+            if (x.open) { bits.push(['<span class="t-red">', x.open + (x.open === 1 ? " problem" : " problems")]); st = "red"; }
+            if (x.svc === "overdue") { bits.push(['<span class="t-orange">', "Service overdue"]); if (st === "green") st = "orange"; }
+            if (x.oil && x.oil.due) { bits.push(['<span class="t-orange">', "Oil check due"]); if (st === "green") st = "orange"; }
+            if (x.svc === "soon") { bits.push(['<span class="t-orange">', "Service due soon"]); if (st === "green") st = "orange"; }
+            if (!x.v.inClock && !x.v.listed) return { st: "grey", html: "Not in the van list" };
+            return { st: st, html: bits.length ? bits.map(([open, t]) => open + esc(t) + "</span>").join(" · ") : "All good" };
         }
         const ST_ORDER = { red: 0, orange: 1, green: 2, grey: 3 };
         function renderPhoneHome(info) {
             const tiles = info.map(x => Object.assign({ t: tileState(x) }, x)).sort((a, b) => ST_ORDER[a.t.st] - ST_ORDER[b.t.st]);
             const tile = x => '<button type="button" class="ph-tile st-' + x.t.st + (x.t.st === "grey" ? " gone" : "") + '" data-open="' + esc(x.v.key) + '">' +
-                '<span class="t-name">' + esc(x.v.name) + '</span><span class="t-st">' + esc(x.t.text) + "</span></button>";
+                '<span class="t-name">' + esc(x.v.name) + '</span><span class="t-st">' + x.t.html + "</span></button>";
             setHtml($("vehicleList"), tiles.length ? '<div class="ph-tiles">' + tiles.map(tile).join("") + "</div>"
                 : empty(isAdmin() ? "No vehicles yet. Add one below, or in the time clock under Admin → Vehicles → Vehicles without GPS." : "No vehicles yet. An admin can add them."));
             const look = isAdmin() ? lookData() : null, n = look ? look.openVans + look.openOils : 0;
