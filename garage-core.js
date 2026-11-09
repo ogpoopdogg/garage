@@ -15,6 +15,8 @@
 //       removed                                    true: removed in Garage (hidden even if the time clock lists it)
 //       items/{id}                                 { cat, label, value, part, link, note, extra, added, addedBy, at, by }
 //                                                  extra/{key}: the category's own fields; at least one field is filled in
+//                                                  ai/{field} { at, by }: filled in by an AI, not confirmed yet;
+//                                                  ok/{field} { at, by }: confirmed (see fillPlan / carryMarks)
 //       service/{id}                               { day: "YYYY-MM-DD", what, km, cost, note, added, addedBy, at, by }
 //       reminders/{id}                             { what, dueKm, dueDay, everyKm, everyMonths, note, added, addedBy, at, by }
 //       odo                                        { km, day, at, by }  the last km reading someone entered
@@ -668,12 +670,15 @@ export function aiText(o) {
         const lines = [];
         for (const it of gr.items) {
             let fs = entryFields(it, gr.cat.id ? gr.cat : null, names).filter(f => f.text.trim());
-            const lab = fs.find(f => f.key === "label");
             if (!pick("plate")) {
+                const lab = fs.find(f => f.key === "label");
                 if (isPlate(lab ? lab.text : entryTitle(it))) continue;
                 fs = fs.filter(f => !isPlate(f.name));
             }
             if (!fs.length) continue;
+            // a value an AI filled in that nobody has confirmed yet says so, so it isn't taken as checked
+            fs = fs.map(f => it.ai && it.ai[f.key] ? Object.assign({}, f, { text: f.text + " (filled in by AI, not checked yet)" }) : f);
+            const lab = fs.find(f => f.key === "label");
             const val = fs.find(f => f.key === "value");
             const head = lab ? lab.text + (val ? ": " + val.text : "") : "";
             const rest = fs.filter(f => !lab || (f !== lab && f !== val)).map(f => f.name + ": " + f.text.replace(/\s+/g, " "));
@@ -702,4 +707,167 @@ export function aiText(o) {
         section("OIL LEVEL CHECKS (drivers are asked on the time clock to check the oil)", lines);
     }
     return out.join("\n");
+}
+
+// ---------- Fill in what's missing, with an AI ----------
+// "Fill missing info" in Ask AI puts a prompt in the question box listing every category's fields this vehicle has
+// nothing in yet. The AI answers each one in its own code box (so each has a copy button), then in one JSON block
+// that's pasted back into Garage ("Paste AI answer"), which shows each value to check before it's filled in.
+// A value filled in this way keeps ai/{field}: { at, by } on its entry until someone confirms it, which turns it into
+// ok/{field}: { at, by } (the check mark). Changing the field by hand drops both: it's then that person's own value.
+const FILL_TAG = "garage_fill";
+// A category whose "What" field is off holds one entry per vehicle (like Vehicle: year, make, model); one with it on
+// holds a list (Lights: Headlight, Brake light...)
+export const isListCat = cat => !!(cat && (cat.fields || categoryFields(null)).some(f => f.key === "label" && f.on));
+const fieldText = (it, k) => String((isExtraKey(k) ? ((it && it.extra) || {})[k] : it && it[k]) || "").trim();
+
+// What's missing, by category: [{ cat, list, fields (the ones that are on), entries: [{ id, title, missing: [field] }],
+// full: [titles of list entries with nothing missing] }]. Entries already filled in completely are left out of entries.
+export function fillGaps(s, cats) {
+    const out = [];
+    for (const gr of itemGroups((s && s.items) || {}, cats || [])) {
+        if (!gr.cat.id) continue;
+        const fields = gr.cat.fields.filter(f => f.on), list = isListCat(gr.cat);
+        const entries = [], full = [];
+        for (const it of gr.items) {
+            const missing = fields.filter(f => !fieldText(it, f.key));
+            if (missing.length) entries.push({ id: it.id, title: entryTitle(it), missing: missing });
+            else full.push(entryTitle(it));
+        }
+        if (list || entries.length || !gr.items.length) out.push({ cat: gr.cat, list: list, fields: fields, entries: entries, full: full, none: !gr.items.length });
+    }
+    return out;
+}
+
+// The prompt that goes in the question box. name: the vehicle's name.
+export function fillPrompt(name, s, cats) {
+    const gaps = fillGaps(s, cats);
+    const q = t => '"' + String(t).replace(/"/g, "'") + '"';
+    const lines = [
+        "Fill in what's missing from our fleet records for this vehicle (" + name + "). Use the VIN, year, make, model and anything else in the records below, and look up the rest.",
+        "",
+        "RULES",
+        "- Only fill in what's listed under WHAT'S MISSING. Never change anything we already have.",
+        "- Each answer is only the value that goes in the field, nothing else. For example H11, not \"The low beam bulb is an H11\".",
+        "- Leave out anything you can't find or aren't sure of. Don't guess. A wrong part number is worse than none.",
+        "- A link must be a full https:// web address of a page that exists.",
+        "- A note is one short line, only when it's worth knowing.",
+        "- For a category marked LIST, also suggest the entries it should have for this vehicle that we don't have yet, each with its fields filled in.",
+        "",
+        "HOW TO ANSWER",
+        "1. For people: under a heading for each category (and each entry), write each field's name, then its answer alone in its own code block, so it has a copy button.",
+        "2. Last, for Garage: ONE code block of JSON with every answer, exactly in this shape:",
+        "```json",
+        "{\"" + FILL_TAG + "\": " + q(name) + ", \"entries\": [",
+        "  {\"cat\": \"category id\", \"id\": \"entry id\", \"fields\": {\"field key\": \"answer\"}},",
+        "  {\"cat\": \"category id\", \"fields\": {\"field key\": \"answer\"}}",
+        "]}",
+        "```",
+        "\"cat\" is the category id and the field keys are the ones listed below. Use \"id\" only for an entry we already have; leave it out for a new one.",
+        "",
+        "WHAT'S MISSING"
+    ];
+    if (!gaps.length) lines.push("Nothing: every category is filled in. Suggest only new entries for the LIST categories, if any are worth adding.");
+    for (const gp of gaps) {
+        lines.push("", "Category " + q(gp.cat.name) + " (cat: " + gp.cat.id + ")" + (gp.list ? " - LIST" : " - one entry") +
+            ". Fields: " + gp.fields.map(f => f.key + " = " + f.name).join(", "));
+        for (const e of gp.entries) lines.push("- " + (gp.list ? "Entry " + q(e.title) : "Its entry") + " (id: " + e.id + "): missing " + e.missing.map(f => f.key).join(", "));
+        if (!gp.list && gp.none) lines.push("- No entry yet: fill in each field (no id).");
+        if (gp.list) {
+            if (gp.full.length) lines.push("- Already complete: " + gp.full.map(q).join(", "));
+            lines.push("- New entries: suggest the ones this vehicle should have that aren't above (no id; give each one its " + (gp.fields.find(f => f.key === "label") || { name: "What" }).name + ").");
+        }
+    }
+    return lines.join("\n");
+}
+
+// The JSON at the end of the AI's answer: { ok: true, vehicle, entries: [{ cat, id, fields }] } or { ok: false, error }
+export function parseFill(text) {
+    const t = String(text || "");
+    const tries = [];
+    const fence = /```[a-zA-Z]*\s*\n?([\s\S]*?)```/g;
+    let m;
+    while ((m = fence.exec(t))) tries.push(m[1]);
+    tries.reverse();
+    const at = t.indexOf(FILL_TAG), open = at < 0 ? t.indexOf("{") : t.lastIndexOf("{", at);
+    if (open >= 0 && t.lastIndexOf("}") > open) tries.push(t.slice(open, t.lastIndexOf("}") + 1));
+    for (const raw of tries) {
+        if (!/"entries"/.test(raw)) continue;
+        const clean = raw.replace(/[“”]/g, '"').replace(/,\s*([}\]])/g, "$1").trim();
+        let j;
+        try { j = JSON.parse(clean); } catch (e) { continue; }
+        if (!j || !Array.isArray(j.entries)) continue;
+        const entries = j.entries.filter(e => e && typeof e === "object" && e.fields && typeof e.fields === "object")
+            .map(e => ({ cat: String(e.cat || "").trim(), id: e.id ? String(e.id).trim() : "", fields: e.fields }));
+        return { ok: true, vehicle: typeof j[FILL_TAG] === "string" ? j[FILL_TAG] : "", entries: entries };
+    }
+    return { ok: false, error: "Couldn't find Garage's part of the answer. Copy the AI's whole answer (or just its last code block, the one that starts with {\"" + FILL_TAG + "\") and paste it here." };
+}
+
+// What the answer would fill in, checked against what the vehicle has now: [{ cat, id (null: a new entry), title,
+// fields: [{ key, name, value }] }], in the categories' order. Only empty fields are filled; unknown categories and
+// fields are left out, a link that isn't a web address is dropped, and each value is cut to its field's length.
+// A new entry with the same "What" as one the vehicle has (or any new one in a one-entry category that has its
+// entry) fills in that entry instead.
+export function fillPlan(entries, s, cats) {
+    const items = (s && s.items) || {};
+    const out = [];
+    const findCat = c => (cats || []).find(x => x.id === c) || (cats || []).find(x => x.name.toLowerCase() === String(c).toLowerCase());
+    for (const e of entries || []) {
+        const cat = findCat(e.cat);
+        if (!cat) continue;
+        const fields = cat.fields.filter(f => f.on), list = isListCat(cat);
+        const vals = {};
+        for (const [k, v] of Object.entries(e.fields)) {
+            const f = fields.find(x => x.key === k) || fields.find(x => x.name.toLowerCase() === String(k).toLowerCase());
+            if (!f || v === null || v === undefined || typeof v === "object") continue;
+            let text = f.long ? String(v).trim() : String(v).replace(/\s+/g, " ").trim();
+            if (f.key === "link") text = cleanLink(text) || "";
+            text = text.slice(0, f.max);
+            if (text) vals[f.key] = text;
+        }
+        if (!Object.keys(vals).length) continue;
+        const mine = Object.entries(items).filter(([, it]) => it && it.cat === cat.id && hasContent(it));
+        let id = e.id && items[e.id] && items[e.id].cat === cat.id ? e.id : null;
+        if (!id && !list && mine.length) id = mine[0][0];
+        if (!id && vals.label) { const same = mine.find(([, it]) => fieldText(it, "label").toLowerCase() === vals.label.toLowerCase()); if (same) id = same[0]; }
+        if (!id) {
+            const pend = out.find(p => !p.id && p.cat === cat.id && (!list || (p.values.label || "").toLowerCase() === (vals.label || "").toLowerCase()));
+            if (pend) { for (const [k, v] of Object.entries(vals)) if (!pend.values[k]) pend.values[k] = v; continue; }
+            if (list && !vals.label) continue;
+            out.push({ cat: cat.id, id: null, values: vals });
+            continue;
+        }
+        const it = items[id];
+        const pend = out.find(p => p.id === id) || (out.push({ cat: cat.id, id: id, values: {} }), out[out.length - 1]);
+        for (const [k, v] of Object.entries(vals)) if (!fieldText(it, k) && !pend.values[k]) pend.values[k] = v;
+    }
+    const order = c => (cats || []).findIndex(x => x.id === c);
+    return out.filter(p => Object.keys(p.values).length).sort((a, b) => order(a.cat) - order(b.cat)).map(p => {
+        const cat = findCat(p.cat), fields = cat.fields.filter(f => f.on);
+        return {
+            cat: p.cat, catName: cat.name, id: p.id,
+            title: !isListCat(cat) ? cat.name : p.id ? entryTitle(items[p.id]) : p.values.label,
+            fields: fields.filter(f => p.values[f.key]).map(f => ({ key: f.key, name: f.name, value: p.values[f.key], max: f.max, long: !!f.long }))
+        };
+    });
+}
+
+// An entry with the picked values filled in (values: { field: text }), in the shape cleanItem() takes
+export function fillRaw(old, cat, values) {
+    const raw = { cat: cat, extra: Object.assign({}, (old && old.extra) || {}) };
+    for (const k of ITEM_KEYS) if (old && old[k] !== undefined) raw[k] = old[k];
+    for (const [k, v] of Object.entries(values)) { if (isExtraKey(k)) raw.extra[k] = v; else raw[k] = v; }
+    return raw;
+}
+
+// The AI marks and check marks an edited entry keeps: only the ones on fields that still say the same thing.
+// Adds ai/ok to value (the entry about to be saved) and returns it.
+export function carryMarks(old, value) {
+    for (const m of ["ai", "ok"]) {
+        const kept = {};
+        for (const [k, x] of Object.entries((old && old[m]) || {})) if (x && fieldText(old, k) && fieldText(old, k) === fieldText(value, k)) kept[k] = x;
+        if (Object.keys(kept).length) value[m] = kept; else delete value[m];
+    }
+    return value;
 }

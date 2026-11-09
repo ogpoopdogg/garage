@@ -379,3 +379,82 @@ test('Ask AI: the text has the question, the checked parts, the VIN, no plate an
   assert.ok(one.includes('FIXED PROBLEMS') && one.includes('Wiper torn') && !one.includes('Brakes') && !one.includes('OPEN PROBLEMS'));
   assert.deepStrictEqual(AI_TARGETS.map(x => x.name), ['Gemini', 'ChatGPT', 'Claude']);
 });
+
+import { fillGaps, fillPrompt, parseFill, fillPlan, fillRaw, carryMarks, isListCat } from '../garage-core.js';
+
+const fillCats = () => sortCategories({
+  vehicle: { name: 'Vehicle', order: 0, fields: VEHICLE_CAT_FIELDS },
+  lights: { name: 'Lights', order: 1 },
+  wipers: { name: 'Wipers', order: 2, fields: { label: { name: 'What', order: 0 }, value: { name: 'Size', order: 1 }, xbrand: { name: 'Brand', order: 2 } } }
+});
+const fillVan = () => ({ items: {
+  v1: { cat: 'vehicle', extra: { xyear: '2019', xmake: 'Ford' } },
+  l1: { cat: 'lights', label: 'Headlight', value: 'H11' },
+  w1: { cat: 'wipers', label: 'Driver', value: '26"', extra: { xbrand: 'Bosch' } }
+} });
+
+test('fill: one-entry and list categories, and what each entry is missing', () => {
+  const cats = fillCats();
+  assert.deepStrictEqual(cats.map(isListCat), [false, true, true]);
+  const gaps = fillGaps(fillVan(), cats);
+  assert.deepStrictEqual(gaps.map(g => [g.cat.id, g.entries.map(e => [e.id, e.missing.map(f => f.key)]), g.full]), [
+    ['vehicle', [['v1', ['xmodel', 'xtrim', 'xengine', 'note']]], []],
+    ['lights', [['l1', ['part', 'link', 'note']]], []],
+    ['wipers', [], ['Driver']]
+  ]);
+  const p = fillPrompt('Van 3', fillVan(), cats);
+  assert.match(p, /"garage_fill": "Van 3"/);
+  assert.match(p, /Entry "Headlight" \(id: l1\): missing part, link, note/);
+  assert.match(p, /Category "Wipers" \(cat: wipers\) - LIST\. Fields: label = What, value = Size, xbrand = Brand/);
+  assert.match(p, /Already complete: "Driver"/);
+  assert.doesNotMatch(p, /missing xyear/);
+});
+
+test('fill: reads the JSON block from the AI\'s whole answer', () => {
+  const answer = 'Here you go.\n\n**Part number**\n```\n9008\n```\n\n```json\n{"garage_fill": "Van 3", "entries": [\n {"cat": "lights", "id": "l1", "fields": {"part": "9008",}},\n]}\n```\nHope that helps.';
+  const r = parseFill(answer);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.vehicle, 'Van 3');
+  assert.deepStrictEqual(r.entries, [{ cat: 'lights', id: 'l1', fields: { part: '9008' } }]);
+  // no code fence (pasted only the block's text)
+  assert.strictEqual(parseFill('{"garage_fill":"3","entries":[{"cat":"x","fields":{"a":"b"}}]}').entries.length, 1);
+  assert.strictEqual(parseFill('just words').ok, false);
+  assert.strictEqual(parseFill('```\n{"entries": [oops\n```').ok, false);
+});
+
+test('fill: only empty fields, known categories and fields; new entries merge into ones with the same name', () => {
+  const plan = fillPlan([
+    { cat: 'lights', id: 'l1', fields: { value: 'H7', part: ' 9008 ', link: 'partsource.ca/x', bogus: 'x' } },
+    { cat: 'lights', fields: { label: 'headlight', note: 'both sides' } },          // same as l1
+    { cat: 'lights', fields: { label: 'Brake light', value: '7443' } },
+    { cat: 'lights', fields: { label: 'Brake light', part: '7443A' } },              // merges with the one above
+    { cat: 'lights', fields: { value: 'no name' } },                                  // a list entry needs its What
+    { cat: 'vehicle', fields: { xmake: 'Chevy', xmodel: 'Transit 250', xtrim: 'x'.repeat(300) } }, // one-entry: fills v1
+    { cat: 'Wipers', fields: { label: 'Passenger', Size: '22"', link: 'javascript:alert(1)' } },  // by name; link not a field here
+    { cat: 'nope', fields: { label: 'x' } },
+    { cat: 'lights', id: 'l1', fields: { link: 'ftp://x' } }
+  ], fillVan(), fillCats());
+  assert.deepStrictEqual(plan.map(p => [p.cat, p.id, p.title, p.fields.map(f => f.key + '=' + f.value)]), [
+    ['vehicle', 'v1', 'Vehicle', ['xmodel=Transit 250', 'xtrim=' + 'x'.repeat(200)]],
+    ['lights', 'l1', 'Headlight', ['part=9008', 'link=https://partsource.ca/x', 'note=both sides']],
+    ['lights', null, 'Brake light', ['label=Brake light', 'value=7443', 'part=7443A']],
+    ['wipers', null, 'Passenger', ['label=Passenger', 'value=22"']]
+  ]);
+});
+
+test('fill: the entry to save, and AI / check marks kept only while the value stays the same', () => {
+  const old = fillVan().items.v1;
+  const raw = fillRaw(old, 'vehicle', { xmodel: 'Transit', note: 'AWD' });
+  assert.deepStrictEqual(raw, { cat: 'vehicle', extra: { xyear: '2019', xmake: 'Ford', xmodel: 'Transit' }, note: 'AWD' });
+  const it = { cat: 'lights', label: 'Headlight', value: 'H11', part: '9008', ai: { part: { at: 1 }, value: { at: 1 } }, ok: { label: { at: 2 } } };
+  assert.deepStrictEqual(carryMarks(it, { cat: 'lights', label: 'Headlight', value: 'H7', part: '9008' }),
+    { cat: 'lights', label: 'Headlight', value: 'H7', part: '9008', ai: { part: { at: 1 } }, ok: { label: { at: 2 } } });
+  assert.deepStrictEqual(carryMarks(it, { cat: 'lights', label: 'Low beam' }), { cat: 'lights', label: 'Low beam' });
+  assert.deepStrictEqual(carryMarks(null, { cat: 'lights', label: 'x', ai: { label: 1 } }), { cat: 'lights', label: 'x' });
+});
+
+test('ask AI: values an AI filled in say they aren\'t checked yet', () => {
+  const s = { items: { l1: { cat: 'lights', label: 'Headlight', value: 'H11', part: '9008', ai: { part: { at: 1 } }, ok: { value: { at: 1 } } } } };
+  const t = aiText({ question: 'q', name: '3', s: s, cats: fillCats(), problems: [], oils: [], today: '2026-11-09', day: () => '', pick: new Set(['c:lights']) });
+  assert.match(t, /- Headlight: H11; Part number: 9008 \(filled in by AI, not checked yet\)/);
+});

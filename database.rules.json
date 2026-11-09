@@ -83,6 +83,34 @@
               "addedBy": {
                 ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
               },
+              "ai": {
+                "$f": {
+                  ".validate": "$f.matches(/^(label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/) && newData.hasChildren(['at'])",
+                  "at": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "by": {
+                    ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                  },
+                  "$other": {
+                    ".validate": false
+                  }
+                }
+              },
+              "ok": {
+                "$f": {
+                  ".validate": "$f.matches(/^(label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/) && newData.hasChildren(['at'])",
+                  "at": {
+                    ".validate": "newData.isNumber()"
+                  },
+                  "by": {
+                    ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                  },
+                  "$other": {
+                    ".validate": false
+                  }
+                }
+              },
               "edits": {
                 "$e": {
                   ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",

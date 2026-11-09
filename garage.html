@@ -358,6 +358,27 @@
         .ai-parts .grp { grid-column: 1 / -1; font-weight: 600; margin-top: 4px; }
         .ai-parts p.grp { font-weight: 400; padding: 2px 8px; }
         .ai-parts .sub { grid-column: 1 / -1; margin-left: 22px; }
+        .ai-picks .chip.fill { color: var(--yellow); box-shadow: inset 0 0 0 1px rgba(255, 204, 0, 0.45); }
+        /* A value an AI filled in (tap to confirm it), and the check mark once someone has */
+        .ai-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 5px; border: 0; border-radius: 5px; vertical-align: 1px;
+            font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; cursor: pointer;
+            color: var(--orange); background: rgba(255, 159, 67, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 159, 67, 0.4); }
+        .ai-tag:hover { background: rgba(255, 159, 67, 0.24); }
+        .ai-tag:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+        .ok-mark { margin-left: 4px; color: var(--green); font-weight: 700; font-size: 0.85em; }
+        .field label .ai-tag { cursor: default; }
+        /* Paste the AI's answer: each value to fill in, with a box to leave it out */
+        #fillModal .modal { width: min(640px, 100%); }
+        #fillPaste { min-height: 90px; }
+        .fill-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+        .fill-ent { padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
+        .fill-ent h4 { font-size: 0.95rem; margin-bottom: 6px; }
+        .fill-ent h4 .muted { font-weight: 400; }
+        .fill-row { display: grid; grid-template-columns: auto minmax(90px, 30%) minmax(0, 1fr); gap: 8px; align-items: center; padding: 3px 0; }
+        .fill-row span { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+        .fill-row .input { height: 36px; width: 100%; }
+        .fill-row.off .input { opacity: 0.45; }
+        .fill-all { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-top: 12px; cursor: pointer; }
         .ai-parts .sub span { white-space: normal; overflow-wrap: anywhere; }
         .ai-parts input[type=checkbox] { flex: none; width: 20px; height: 20px; accent-color: var(--yellow); cursor: pointer; }
         .ai-preview { margin-bottom: 12px; }
@@ -831,7 +852,7 @@
             <h2 id="aiTitle">Ask AI</h2>
             <p class="modal-sub">Copies your question with this vehicle's records, then opens the AI. Paste it there: long-press the box and tap Paste, or Ctrl+V on a computer.</p>
             <div id="aiMissing"></div>
-            <div class="field"><label for="aiQ">Your question</label><textarea class="textarea" id="aiQ" maxlength="2000" placeholder="e.g. What could make the brakes squeal?"></textarea></div>
+            <div class="field"><label for="aiQ">Your question</label><textarea class="textarea" id="aiQ" maxlength="20000" placeholder="e.g. What could make the brakes squeal?"></textarea></div>
             <div class="chips ai-picks" id="aiPicks"></div>
             <div class="label">What to send</div>
             <div class="ai-parts" id="aiParts"></div>
@@ -841,8 +862,25 @@
             <div class="ai-go" id="aiGo"></div>
             <div class="modal-foot" style="margin-top:14px">
                 <button type="button" class="btn ghost" id="aiCopy">Copy only</button>
+                <button type="button" class="btn ghost" id="aiPasteBtn">Paste AI answer</button>
                 <span class="spacer"></span>
                 <button type="button" class="btn ghost" data-close>Close</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Paste the AI's answer to "Fill missing info", check it, fill it in -->
+    <div class="modal-backdrop" id="fillModal">
+        <form class="modal" role="dialog" aria-modal="true" aria-labelledby="fillTitle" id="fillForm" novalidate>
+            <h2 id="fillTitle">Paste AI answer</h2>
+            <p class="modal-sub">Paste the AI's whole answer to <b>Fill missing info</b>. Garage only fills in fields that are empty, and each one is marked <span class="ai-tag">AI</span> until someone taps it and confirms it's right.</p>
+            <div class="field"><label for="fillPaste">The AI's answer</label><textarea class="textarea" id="fillPaste" placeholder="Long-press and tap Paste, or Ctrl+V"></textarea></div>
+            <div id="fillOut"></div>
+            <p class="modal-msg" id="fillMsg" role="alert"></p>
+            <div class="modal-foot">
+                <span class="spacer"></span>
+                <button type="button" class="btn ghost" data-close>Cancel</button>
+                <button type="submit" class="btn primary" id="fillSave" disabled>Fill in</button>
             </div>
         </form>
     </div>
@@ -2056,25 +2094,26 @@
             const names = g.fieldNames(cats);
             const itemHtml = (it, cat) => {
                 const fs = g.entryFields(it, cat, names).filter(f => f.text);
+                const mk = f => fieldMark(it, f);
                 const lab = fs.find(f => f.key === "label"), val = fs.find(f => f.key === "value");
                 let rest = fs.filter(f => f.key !== "link" && f.key !== "note"), head;
                 if (lab) {
-                    head = '<span class="i-label">' + esc(lab.text) + (val ? ":</span> <span class=\"i-value\">" + esc(val.text) + "</span>" : "</span>");
+                    head = '<span class="i-label">' + esc(lab.text) + mk(lab) + (val ? ":</span> <span class=\"i-value\">" + esc(val.text) + mk(val) + "</span>" : "</span>");
                     rest = rest.filter(f => f !== lab && f !== val);
                 } else if (rest.length) {
-                    head = '<span class="i-label">' + esc(rest[0].name) + ':</span> <span class="i-value">' + esc(rest[0].text) + "</span>";
+                    head = '<span class="i-label">' + esc(rest[0].name) + ':</span> <span class="i-value">' + esc(rest[0].text) + mk(rest[0]) + "</span>";
                     rest = rest.slice(1);
                 } else head = '<span class="i-label">' + esc((fs[0] || { name: "" }).name) + "</span>";
                 const lf = fs.find(f => f.key === "link"), nf = fs.find(f => f.key === "note");
                 const link = lf ? g.cleanLink(lf.text) : "";
                 let host = "";
                 try { host = link ? new URL(link).hostname.replace(/^www\./, "") : ""; } catch (e) { host = ""; }
-                const extra = f => "<span>" + (f.key === "part" && f.name === "Part number" ? "Part # " : esc(f.name) + ": ") + esc(f.text) + "</span>";
+                const extra = f => "<span>" + (f.key === "part" && f.name === "Part number" ? "Part # " : esc(f.name) + ": ") + esc(f.text) + mk(f) + "</span>";
                 return '<div class="item" data-row="item:' + esc(it.id) + '"><div class="i-main">' + head + "</div>" +
                     '<div class="i-tools"><button type="button" class="icon-btn" data-edit-item="' + esc(it.id) + '" aria-label="Edit ' + esc(g.entryTitle(it)) + '">' + ICON.edit + "</button></div>" +
                     (rest.length || link ? '<div class="i-extra">' + rest.map(extra).join("") +
-                        (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(host || "Link") + "</a>" : "") + "</div>" : "") +
-                    (nf ? '<div class="i-note">' + esc(nf.text) + "</div>" : "") + editsHtml("item", "i:" + it.id, it.edits, it) + "</div>";
+                        (link ? '<span><a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(host || "Link") + "</a>" + mk(lf) + "</span>" : "") + "</div>" : "") +
+                    (nf ? '<div class="i-note">' + esc(nf.text) + mk(nf) + "</div>" : "") + editsHtml("item", "i:" + it.id, it.edits, it) + "</div>";
             };
             // Categories with something saved first (in their order, one after another), then the empty ones under them
             const info = groups.filter(gr => gr.items.length).concat(groups.filter(gr => !gr.items.length)).map(gr => '<div class="cat' + (gr.items.length ? "" : " empty-cat") + '"><div class="cat-head"><span class="cat-name">' + esc(gr.cat.name) + "</span>" +
@@ -2246,7 +2285,9 @@
             editItem.fields = fs;
             $("imFields").innerHTML = fs.map(f => {
                 const id = "imF_" + f.key, attrs = ' id="' + id + '" data-fkey="' + esc(f.key) + '" maxlength="' + f.max + '" placeholder="' + esc(f.placeholder || "") + '" autocomplete="off"';
-                return '<div class="field' + (f.wide ? " full" : "") + '"><label for="' + id + '">' + esc(f.name) + "</label>" +
+                const m = editItem.id ? (((stored[editItem.key] || {}).items || {})[editItem.id] || {}) : {};
+                const tag = m.ai && m.ai[f.key] && f.text ? ' <span class="ai-tag" title="Filled in by AI, not confirmed yet. Changing it makes it your own.">AI</span>' : m.ok && m.ok[f.key] && f.text ? ' <span class="ok-mark" title="Confirmed">✓</span>' : "";
+                return '<div class="field' + (f.wide ? " full" : "") + '"><label for="' + id + '">' + esc(f.name) + tag + "</label>" +
                     (f.long ? '<textarea class="textarea"' + attrs + ">" + esc(f.text) + "</textarea>"
                         : '<input class="input"' + attrs + (f.link ? ' type="url" inputmode="url"' : ' type="text"') + ' value="' + esc(f.text) + '">') + "</div>";
             }).join("");
@@ -2277,7 +2318,7 @@
             const path = G.vehicles + "/" + key + "/items/" + (id || push(ref(db, G.vehicles + "/" + key + "/items")).key);
             $("imSave").disabled = true;
             try {
-                await write(withName(key, { [path]: keepEdits(path, old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())), ["cat"].concat(g.ITEM_KEYS)) }), { vkey: key, text: (old ? "Changed " : "Added ") + itemText(c.value) });
+                await write(withName(key, { [path]: keepEdits(path, old, g.carryMarks(old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp()))), ["cat"].concat(g.ITEM_KEYS)) }), { vkey: key, text: (old ? "Changed " : "Added ") + itemText(c.value) });
                 closeModal("itemModal"); toast("Saved.");
             } catch (err) { $("imMsg").textContent = "Couldn't save: " + errMsg(err); }
             $("imSave").disabled = false;
@@ -2476,6 +2517,8 @@
                 return;
             }
             if (e.target.closest("[data-oil-older]")) { showOlderOil(); return; }
+            const ak = e.target.closest("[data-aiok]");
+            if (ak) { const [id, f] = ak.dataset.aiok.split("|"); confirmAi(key, id, f); return; }
             // The phone layout: its big buttons, the Update km screen, and tapping an entry to change it
             const sec = e.target.closest("[data-sec]");
             if (sec) { go("v:" + key + "/" + sec.dataset.sec, true); return; }
@@ -2514,7 +2557,7 @@
             const off = new Set(saved.off || parts.filter(p => !p.on).map(p => p.key));
             $("aiTitle").textContent = "Ask AI about " + vName(key);
             $("aiQ").value = ""; $("aiMsg").textContent = "";
-            $("aiPicks").innerHTML = g.AI_QUESTIONS.map((q, i) => '<button type="button" class="chip" data-aiq="' + i + '">' + esc(q.name) + "</button>").join("");
+            $("aiPicks").innerHTML = '<button type="button" class="chip fill" data-aifill title="Asks the AI for everything this vehicle is missing in every category">Fill missing info</button>' + g.AI_QUESTIONS.map((q, i) => '<button type="button" class="chip" data-aiq="' + i + '">' + esc(q.name) + "</button>").join("");
             // Each problem has its own box, under Open problems or Fixed problems (which check or uncheck all of theirs)
             const box = p => '<label' + (p.group ? ' class="sub" title="' + esc(p.name) + '"' : "") + '><input type="checkbox" data-part="' + esc(p.key) + '"' +
                 (p.group ? ' data-in="' + p.group + '"' : "") + (off.has(p.key) ? "" : " checked") + "><span>" +
@@ -2603,6 +2646,12 @@
         $("aiForm").addEventListener("submit", e => e.preventDefault());
         $("aiQ").addEventListener("input", aiRender);
         $("aiPicks").addEventListener("click", e => {
+            if (e.target.closest("[data-aifill]") && aiKey) {
+                $("aiQ").value = g.fillPrompt(vName(aiKey), stored[aiKey] || {}, cats);
+                aiRender();
+                toast("Prompt added. Copy it to the AI, then bring its answer back with Paste AI answer.");
+                return;
+            }
             const b = e.target.closest("[data-aiq]");
             if (!b) return;
             $("aiQ").value = g.AI_QUESTIONS[Number(b.dataset.aiq)].text;
@@ -2617,6 +2666,117 @@
         $("aiMissing").addEventListener("click", e => { if (e.target.closest("#aiAddModel") && aiKey) addModel(aiKey); });
         $("aiGo").addEventListener("click", e => { const b = e.target.closest("[data-ai]"); if (b) aiSend(g.AI_TARGETS.find(t => t.key === b.dataset.ai)); });
         $("aiCopy").addEventListener("click", () => aiSend(null));
+        $("aiPasteBtn").addEventListener("click", () => { if (aiKey) { closeModal("aiModal"); openFill(aiKey); } });
+
+        // ---------- Fill missing info: the AI's answer pasted back ----------
+        // Shows each value it found for a field that's empty, with a box to leave it out (and the value can be changed
+        // first). Filled-in values are marked AI on the entry until someone confirms them (confirmAi).
+        let fillState = null; // { key, plan }
+        function openFill(key) {
+            fillState = { key: key, plan: [] };
+            $("fillTitle").textContent = "Paste AI answer for " + vName(key);
+            $("fillPaste").value = ""; setHtml($("fillOut"), ""); $("fillMsg").textContent = "";
+            fillCount();
+            openModal("fillModal");
+        }
+        function fillRead() {
+            if (!fillState) return;
+            const text = $("fillPaste").value;
+            fillState.plan = [];
+            $("fillMsg").textContent = "";
+            if (!text.trim()) { setHtml($("fillOut"), ""); fillCount(); return; }
+            const r = g.parseFill(text);
+            if (!r.ok) { setHtml($("fillOut"), ""); $("fillMsg").textContent = r.error; fillCount(); return; }
+            const plan = fillState.plan = g.fillPlan(r.entries, stored[fillState.key] || {}, cats);
+            const other = r.vehicle && vanKey(r.vehicle) !== fillState.key;
+            if (!plan.length) { setHtml($("fillOut"), '<p class="hint" style="margin-top:12px">Nothing to fill in: the answer has nothing for the fields that are still empty.</p>'); fillCount(); return; }
+            setHtml($("fillOut"), (other ? '<div class="ai-missing" style="margin-top:12px"><span>This answer says it\'s for ' + esc(r.vehicle) + ", not " + esc(vName(fillState.key)) + ". Check it's the right one.</span></div>" : "") +
+                '<label class="fill-all"><input type="checkbox" id="fillAll" checked><span>Check all</span></label><div class="fill-list">' +
+                plan.map((p, i) => '<div class="fill-ent"><h4>' + esc(p.catName) + ' · <span class="muted">' + (p.id ? "" : "New: ") + "</span>" + esc(p.title) + "</h4>" +
+                    p.fields.map(f => '<label class="fill-row"><input type="checkbox" data-fi="' + i + "|" + esc(f.key) + '" checked><span>' + esc(f.name) + "</span>" +
+                        '<input class="input" type="text" data-fv="' + i + "|" + esc(f.key) + '" value="' + esc(f.value) + '" maxlength="' + f.max + '" autocomplete="off"></label>').join("") + "</div>").join("") + "</div>");
+            fillCount();
+        }
+        const fillBoxes = () => Array.from($("fillOut").querySelectorAll("[data-fi]"));
+        function fillCount() {
+            const boxes = fillBoxes(), n = boxes.filter(b => b.checked).length;
+            boxes.forEach(b => b.closest(".fill-row").classList.toggle("off", !b.checked));
+            if ($("fillAll")) { $("fillAll").checked = n === boxes.length; $("fillAll").indeterminate = n > 0 && n < boxes.length; }
+            $("fillSave").disabled = !n;
+            $("fillSave").textContent = n ? "Fill in " + n + (n === 1 ? " field" : " fields") : "Fill in";
+        }
+        $("fillPaste").addEventListener("input", fillRead);
+        $("fillOut").addEventListener("change", e => {
+            if (e.target.id === "fillAll") fillBoxes().forEach(b => { b.checked = e.target.checked; });
+            fillCount();
+        });
+        $("fillForm").addEventListener("submit", async e => {
+            e.preventDefault();
+            if (!fillState) return;
+            const key = fillState.key, items = (stored[key] || {}).items || {}, u = {}, hist = [];
+            const picked = fillState.plan.map(() => ({}));
+            fillBoxes().filter(b => b.checked).forEach(b => {
+                const [i, k] = b.dataset.fi.split("|"), v = $("fillOut").querySelector('[data-fv="' + i + "|" + k + '"]').value.trim();
+                if (v) picked[Number(i)][k] = v;
+            });
+            let n = 0;
+            for (const [i, p] of fillState.plan.entries()) {
+                const old = p.id ? items[p.id] : null;
+                if (p.id && !old) continue; // deleted since
+                const cat = cats.find(c => c.id === p.cat);
+                const vals = {};
+                for (const [k, v] of Object.entries(picked[i])) if (!old || !String((g.isExtraKey(k) ? (old.extra || {})[k] : old[k]) || "").trim()) vals[k] = v;
+                if (!cat || !Object.keys(vals).length) continue;
+                const c = g.cleanItem(g.fillRaw(old, p.cat, vals), cat.fields);
+                if (!c.ok) { $("fillMsg").textContent = p.catName + " · " + p.title + ": " + c.error; return; }
+                const path = G.vehicles + "/" + key + "/items/" + (p.id || push(ref(db, G.vehicles + "/" + key + "/items")).key);
+                const value = g.carryMarks(old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())));
+                value.ai = Object.assign({}, value.ai);
+                for (const k of Object.keys(vals)) value.ai[k] = { at: serverTimestamp(), by: by() };
+                u[path] = keepEdits(path, old, value, ["cat"].concat(g.ITEM_KEYS));
+                n += Object.keys(vals).length;
+                hist.push({ vkey: key, text: "AI filled in " + itemText(value) + " (" + p.fields.filter(f => vals[f.key]).map(f => f.name).join(", ") + ")" });
+            }
+            if (!n) { $("fillMsg").textContent = "Nothing left to fill in: those fields were filled in meanwhile."; return; }
+            $("fillSave").disabled = true;
+            try {
+                await write(withName(key, u), hist);
+                closeModal("fillModal"); fillState = null;
+                toast("Filled in " + n + (n === 1 ? " field" : " fields") + ". Tap each AI mark to confirm it.");
+            } catch (err) { $("fillMsg").textContent = "Couldn't save: " + errMsg(err); $("fillSave").disabled = false; }
+        });
+
+        // The AI mark on a value (or the check mark once someone confirmed it)
+        function fieldMark(it, f) {
+            const a = it.ai && it.ai[f.key], o = it.ok && it.ok[f.key];
+            if (a) return '<button type="button" class="ai-tag" data-aiok="' + esc(it.id + "|" + f.key) + '" title="Filled in by AI. Tap to confirm it\'s right.">AI · check</button>';
+            if (o) return '<span class="ok-mark" role="img" aria-label="Confirmed" title="' + esc("Confirmed" + (o.by ? " by " + String(o.by).split("@")[0] : "") + (typeof o.at === "number" ? " " + fmtKey(dayKey(o.at)) : "")) + '">✓</span>';
+            return "";
+        }
+        // Tapping an AI mark: is it right? Yes turns it into a check mark
+        async function confirmAi(key, id, fk) {
+            const it = ((stored[key] || {}).items || {})[id];
+            if (!it || !it.ai || !it.ai[fk]) return;
+            const cat = cats.find(c => c.id === it.cat) || null;
+            const f = g.entryFields(it, cat, g.fieldNames(cats)).find(x => x.key === fk);
+            if (!f || !f.text) return;
+            const a = it.ai[fk];
+            const where = !cat ? "Other · " + g.entryTitle(it) : g.isListCat(cat) ? cat.name + " · " + g.entryTitle(it) : cat.name;
+            const when = (a.by ? " by " + String(a.by).split("@")[0] : "") + (typeof a.at === "number" ? " on " + fmtKey(dayKey(a.at)) : "");
+            const ok = await ask({
+                title: f.name + ": " + (f.text.length > 80 ? f.text.slice(0, 80) + "…" : f.text),
+                sub: where + ". An AI filled this in" + when + ". Is it right? Check it against the vehicle, its manual or the store first. If it's wrong, tap Cancel and change it with the pencil.",
+                ok: "Yes, it's right"
+            });
+            if (ok === null) return;
+            const cur = ((stored[key] || {}).items || {})[id];
+            if (!cur || !cur.ai || !cur.ai[fk]) return;
+            const p = G.vehicles + "/" + key + "/items/" + id;
+            try {
+                await write({ [p + "/ai/" + fk]: null, [p + "/ok/" + fk]: { at: serverTimestamp(), by: by() } }, { vkey: key, text: "Confirmed " + where + " · " + f.name + ": " + f.text });
+                toast("Confirmed.");
+            } catch (err) { toast("Couldn't save: " + errMsg(err)); }
+        }
 
         // ---------- Trash ----------
         const KIND = { item: "Entry", service: "Service", reminder: "Reminder", vehicle: "Vehicle" };
