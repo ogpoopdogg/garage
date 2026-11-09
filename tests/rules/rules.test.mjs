@@ -263,3 +263,20 @@ test('an account that isn\'t staff (or whose staff flag is off) gets nothing', a
     await assertFails(db.ref('garage/history/12/h1').set({ at: 1, by: 'x', text: 'x' }));
   }
 });
+
+test('AI marks and check marks on an entry\'s fields: { at, by } per field, staff too', async () => {
+  const db = await staff('sam@ec.com');
+  const p = 'garage/vehicles/12/items/i1';
+  await assertSucceeds(db.ref(p).set(Object.assign({}, item, { ai: { part: { at: 1, by: 'sam@ec.com' }, 'x-Nabc_1': { at: 1 } } })));
+  // confirming: the AI mark goes, the check mark comes, in one write
+  await assertSucceeds(db.ref().update({ [p + '/ai/part']: null, [p + '/ok/part']: { at: 2, by: 'sam@ec.com' } }));
+  await assertSucceeds(db.ref(p + '/ok/label').set({ at: 3 }));
+  await assertFails(db.ref(p + '/ai/price').set({ at: 1 }));
+  await assertFails(db.ref(p + '/ai/part').set(true));
+  await assertFails(db.ref(p + '/ok/part').set({ by: 'sam@ec.com' }));
+  await assertFails(db.ref(p + '/ok/part').set({ at: 'today' }));
+  await assertFails(db.ref(p + '/ok/part').set({ at: 1, by: 'x'.repeat(101) }));
+  await assertFails(db.ref(p + '/ok/part').set({ at: 1, sure: true }));
+  const matt = as('matt@ec.com');
+  await assertFails(matt.ref(p + '/ok/value').set({ at: 1 }));
+});
