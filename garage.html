@@ -358,7 +358,16 @@
         .ai-parts .grp { grid-column: 1 / -1; font-weight: 600; margin-top: 4px; }
         .ai-parts p.grp { font-weight: 400; padding: 2px 8px; }
         .ai-parts .sub { grid-column: 1 / -1; margin-left: 22px; }
-        .ai-picks .chip.fill { color: var(--yellow); box-shadow: inset 0 0 0 1px rgba(255, 204, 0, 0.45); }
+        /* Ask AI's top: the title, Fill missing info with AI next to it, and the X (on a phone the button goes under the title) */
+        .ai-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; margin-bottom: 4px; }
+        .ai-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+        .ai-head .ai-x { width: 40px; height: 40px; margin: -6px -8px 0 0; align-self: start; }
+        .ai-head .ai-x svg { width: 20px; height: 20px; }
+        @media (max-width: 620px) {
+            .ai-head { grid-template-columns: minmax(0, 1fr) auto; }
+            .ai-head .ai-x { grid-column: 2; grid-row: 1; }
+            .ai-head #aiFillBtn { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+        }
         /* A value an AI filled in (tap to confirm it), and the check mark once someone has */
         .ai-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 5px; border: 0; border-radius: 5px; vertical-align: 1px;
             font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; cursor: pointer;
@@ -849,7 +858,11 @@
     <!-- Ask AI: the question and the vehicle's records, copied, then the AI opens -->
     <div class="modal-backdrop" id="aiModal">
         <form class="modal" role="dialog" aria-modal="true" aria-labelledby="aiTitle" id="aiForm" novalidate>
-            <h2 id="aiTitle">Ask AI</h2>
+            <div class="ai-head">
+                <h2 id="aiTitle">Ask AI</h2>
+                <button type="button" class="btn sm primary" id="aiFillBtn" title="Writes a question asking the AI for everything this vehicle is missing in every category">Fill missing info with AI</button>
+                <button type="button" class="icon-btn ai-x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            </div>
             <p class="modal-sub">Copies your question with this vehicle's records, then opens the AI. Paste it there: long-press the box and tap Paste, or Ctrl+V on a computer.</p>
             <div id="aiMissing"></div>
             <div class="field"><label for="aiQ">Your question</label><textarea class="textarea" id="aiQ" maxlength="20000" placeholder="e.g. What could make the brakes squeal?"></textarea></div>
@@ -862,9 +875,7 @@
             <div class="ai-go" id="aiGo"></div>
             <div class="modal-foot" style="margin-top:14px">
                 <button type="button" class="btn ghost" id="aiCopy">Copy only</button>
-                <button type="button" class="btn ghost" id="aiPasteBtn">Paste AI answer</button>
-                <span class="spacer"></span>
-                <button type="button" class="btn ghost" data-close>Close</button>
+                <button type="button" class="btn ghost" id="aiPasteBtn" title="Paste the AI's answer to Fill missing info, check it and fill in the fields">Save AI answer</button>
             </div>
         </form>
     </div>
@@ -872,8 +883,8 @@
     <!-- Paste the AI's answer to "Fill missing info", check it, fill it in -->
     <div class="modal-backdrop" id="fillModal">
         <form class="modal" role="dialog" aria-modal="true" aria-labelledby="fillTitle" id="fillForm" novalidate>
-            <h2 id="fillTitle">Paste AI answer</h2>
-            <p class="modal-sub">Paste the AI's whole answer to <b>Fill missing info</b>. Garage only fills in fields that are empty, and each one is marked <span class="ai-tag">AI</span> until someone taps it and confirms it's right.</p>
+            <h2 id="fillTitle">Save AI answer</h2>
+            <p class="modal-sub">Paste the AI's whole answer to <b>Fill missing info with AI</b>. Garage only fills in fields that are empty, and each one is marked <span class="ai-tag">AI</span> until someone taps it and confirms it's right.</p>
             <div class="field"><label for="fillPaste">The AI's answer</label><textarea class="textarea" id="fillPaste" placeholder="Long-press and tap Paste, or Ctrl+V"></textarea></div>
             <div id="fillOut"></div>
             <p class="modal-msg" id="fillMsg" role="alert"></p>
@@ -2557,7 +2568,7 @@
             const off = new Set(saved.off || parts.filter(p => !p.on).map(p => p.key));
             $("aiTitle").textContent = "Ask AI about " + vName(key);
             $("aiQ").value = ""; $("aiMsg").textContent = "";
-            $("aiPicks").innerHTML = '<button type="button" class="chip fill" data-aifill title="Asks the AI for everything this vehicle is missing in every category">Fill missing info</button>' + g.AI_QUESTIONS.map((q, i) => '<button type="button" class="chip" data-aiq="' + i + '">' + esc(q.name) + "</button>").join("");
+            $("aiPicks").innerHTML = g.AI_QUESTIONS.map((q, i) => '<button type="button" class="chip" data-aiq="' + i + '">' + esc(q.name) + "</button>").join("");
             // Each problem has its own box, under Open problems or Fixed problems (which check or uncheck all of theirs)
             const box = p => '<label' + (p.group ? ' class="sub" title="' + esc(p.name) + '"' : "") + '><input type="checkbox" data-part="' + esc(p.key) + '"' +
                 (p.group ? ' data-in="' + p.group + '"' : "") + (off.has(p.key) ? "" : " checked") + "><span>" +
@@ -2645,13 +2656,14 @@
         }
         $("aiForm").addEventListener("submit", e => e.preventDefault());
         $("aiQ").addEventListener("input", aiRender);
-        $("aiPicks").addEventListener("click", e => {
-            if (e.target.closest("[data-aifill]") && aiKey) {
+        $("aiFillBtn").addEventListener("click", () => {
+            if (aiKey) {
                 $("aiQ").value = g.fillPrompt(vName(aiKey), stored[aiKey] || {}, cats);
                 aiRender();
-                toast("Prompt added. Copy it to the AI, then bring its answer back with Paste AI answer.");
-                return;
+                toast("Question added. Copy it to the AI, then bring its answer back with Save AI answer.");
             }
+        });
+        $("aiPicks").addEventListener("click", e => {
             const b = e.target.closest("[data-aiq]");
             if (!b) return;
             $("aiQ").value = g.AI_QUESTIONS[Number(b.dataset.aiq)].text;
@@ -2674,7 +2686,7 @@
         let fillState = null; // { key, plan }
         function openFill(key) {
             fillState = { key: key, plan: [] };
-            $("fillTitle").textContent = "Paste AI answer for " + vName(key);
+            $("fillTitle").textContent = "Save AI answer for " + vName(key);
             $("fillPaste").value = ""; setHtml($("fillOut"), ""); $("fillMsg").textContent = "";
             fillCount();
             openModal("fillModal");
