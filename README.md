@@ -61,10 +61,10 @@ categories, adding, removing or putting back vehicles, and **Delete for good** s
   text from a link, so paste it there. People's names aren't sent. **Add them** (when no year, make
   or model is saved) adds a **Vehicle** category the first time, with Year, Make, Model, Trim and
   Engine as its own fields, like any field added in the category window.
-- **Fill missing info** (in Ask AI): puts a prompt in the question box listing every category's fields this
+- **Fill missing info with AI** (at the top of Ask AI, next to its title): puts a prompt in the question box listing every category's fields this
   vehicle has nothing in yet, and asks the AI for new entries in the list categories (a category whose *What*
   field is on). The AI answers each value in its own code box, so each has a copy button, and ends with one
-  block for Garage. **Paste AI answer** reads that block and shows each value next to its field, with a box to
+  block for Garage. **Save AI answer** reads that block and shows each value next to its field, with a box to
   leave it out (values can be changed first); **Fill in** saves them. Garage only fills fields that are empty.
   Each filled value shows an **AI · check** mark until someone taps it and confirms it's right, which turns it
   into a green check mark. Changing a value by hand drops its mark: it's then that person's own value.

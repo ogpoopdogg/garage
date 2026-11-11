@@ -636,9 +636,7 @@ export const AI_GROUPS = { open: "Open problems", fixed: "Fixed problems" };
 export const AI_QUESTIONS = [
     { name: "Diagnose problems", text: "What could be causing the open problems below, and what should we check first?" },
     { name: "Maintenance due", text: "What maintenance should this vehicle have at its current km, and is anything overdue going by the service log?" },
-    { name: "Part numbers", text: "Find the right part numbers for this vehicle (bulbs, filters, wiper blades, battery) and say where they're usually sold in Canada." },
-    { name: "Recalls and common issues", text: "What are the common problems and any recalls for this vehicle? Use the VIN if it's below." },
-    { name: "Repair or replace", text: "Going by its age, km and repair history, is this vehicle worth repairing or close to the point of replacing?" }
+    { name: "Recalls and common issues", text: "What are the common problems and any recalls for this vehicle? Use the VIN if it's below." }
 ];
 
 // Where the text goes. None of them fills its box from a link for this much text, so it's copied and pasted.
@@ -712,7 +710,7 @@ export function aiText(o) {
 // ---------- Fill in what's missing, with an AI ----------
 // "Fill missing info" in Ask AI puts a prompt in the question box listing every category's fields this vehicle has
 // nothing in yet. The AI answers each one in its own code box (so each has a copy button), then in one JSON block
-// that's pasted back into Garage ("Paste AI answer"), which shows each value to check before it's filled in.
+// that's pasted back into Garage ("Save AI answer"), which shows each value to check before it's filled in.
 // A value filled in this way keeps ai/{field}: { at, by } on its entry until someone confirms it, which turns it into
 // ok/{field}: { at, by } (the check mark). Changing the field by hand drops both: it's then that person's own value.
 const FILL_TAG = "garage_fill";
