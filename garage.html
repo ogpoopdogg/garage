@@ -827,6 +827,7 @@
             </div>
             <p class="modal-msg" id="askMsg" role="alert"></p>
             <div class="modal-foot">
+                <button type="button" class="btn danger" id="askAlt" hidden></button>
                 <span class="spacer"></span>
                 <button type="button" class="btn ghost" data-close>Cancel</button>
                 <button type="submit" class="btn primary" id="askOk">OK</button>
@@ -1061,6 +1062,8 @@
             }
             $("askOk").textContent = o.ok || "OK";
             $("askOk").className = "btn " + (o.danger ? "danger" : "primary");
+            // a second answer (no text box): resolves to "alt"
+            $("askAlt").hidden = !o.alt; $("askAlt").textContent = o.alt || "";
             openModal("askModal");
             return new Promise(resolve => {
                 askDone = v => { askDone = null; askCheck = null; resolve(v); };
@@ -1075,6 +1078,7 @@
             });
         }
         let askCheck = null;
+        $("askAlt").addEventListener("click", () => { const done = askDone; if (!done) return; closeModal("askModal", true); done("alt"); });
         $("askForm").addEventListener("submit", e => { e.preventDefault(); if (askCheck) askCheck(); });
 
         // ---------- Sign in (staff: the time clock admins, and the accounts marked staff in the database) ----------
@@ -1635,7 +1639,7 @@
                 editsHtml("problem", "p:" + r.id, problemEdits[r.id]) +
                 '<div class="e-actions">' + '<button type="button" class="btn sm ghost" data-vancopy="' + esc(r.id) + '" title="Copy it to paste anywhere">Copy</button>' +
                     // copies it, opens Google Messages, and marks it sent so everyone can see it's already in the chat
-                    (problemSent[r.id] ? '<button type="button" class="btn sm sent" data-vansend="' + esc(r.id) + '" title="Already sent to the chat. Tap to send it again.">✓ Sent to chat</button>'
+                    (problemSent[r.id] ? '<button type="button" class="btn sm sent" data-vansend="' + esc(r.id) + '" title="Already sent to the chat. Tap to send it again or take the check off.">✓ Sent to chat</button>'
                         : '<button type="button" class="btn sm" data-vansend="' + esc(r.id) + '" title="Open Google Messages with it, and mark it sent">Send to chat</button>') +
                     (cleared ? '<button type="button" class="btn sm primary" data-vanback="' + esc(r.id) + '">Bring back</button>'
                     : (done ? '<button type="button" class="btn sm ghost" data-vanreopen="' + esc(r.id) + '">Reopen</button>'
@@ -1871,6 +1875,18 @@
                 if (!r) return;
                 // "Van 12 - Brake light out", to paste into a text
                 const text = (r.vehicleName || vName(r.vkey) || r.vehicleId || "Vehicle") + " - " + String(r.text || "").replace(/\s+/g, " ").trim();
+                // Already sent: send it again, or take the check off (sent by mistake)
+                if (send && problemSent[id]) {
+                    const m = problemSent[id];
+                    const pick = await ask({ title: "Already sent to the chat", sub: text + " · Sent" + (m.by ? " by " + who(m.by) : "") + (typeof m.at === "number" ? ", " + ago(m.at) : "") + ".",
+                        ok: "Send again", alt: "Take the check off" });
+                    if (pick === null) return;
+                    if (pick === "alt") {
+                        try { await write({ [G.problemSent + "/" + id]: null }, { vkey: vanKey(r.vehicleName || ""), text: "Sent to chat check taken off: " + short(r.text, 80) }); toast("Check taken off."); }
+                        catch (err) { toast("Couldn't take it off: " + errMsg(err), true); }
+                        return;
+                    }
+                }
                 const ok = copyNow(text);
                 if (send) {
                     // Android: the texting app (Google Messages) with the text filled in; pick the chat there.
@@ -1958,9 +1974,12 @@
             const base = G.problemEdits + "/" + id;
             const u = { [P.vanReports + "/" + id + "/" + field]: val || null, [base + "/" + push(ref(db, base)).key]: { at: serverTimestamp(), by: by(), was: was } };
             for (const d of g.editDrops(problemEdits[id])) u[base + "/" + d] = null;
+            // the chat has the old wording, so a new wording isn't sent yet
+            const unsent = !fix && !!problemSent[id];
+            if (unsent) u[G.problemSent + "/" + id] = null;
             try {
                 await write(u, { vkey: vanKey(cur.vehicleName || ""), text: (fix ? "Fix note edited: " : "Problem edited: ") + short(val, 80) + " (was: " + short(was[field] || "empty", 80) + ")" });
-                toast("Saved. What it said before is kept on it.");
+                toast("Saved. What it said before is kept on it." + (unsent ? " The Sent to chat check came off, since the chat has the old wording." : ""));
             } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
         }
         async function addProblem(key) {
