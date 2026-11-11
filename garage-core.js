@@ -23,6 +23,7 @@
 //   garage/trash/{id}                            { at, by, kind, vkey, vname, id, data }  deleted things, kept 30 days
 //   garage/history/{vkey}/{id}                   { at, by, text }  what changed on each vehicle ("_all": all vehicles)
 //   garage/problem_reads/{reportId}              { at, by }  a problem marked as read: it no longer counts on the tab
+//   garage/problem_sent/{reportId}               { at, by }  a problem sent to the group chat (Send to chat)
 //   garage/problem_cleared/{reportId}            { at, by }  a fixed problem taken off the Vehicle checks tab
 //   garage/oil_cleared/{ek}/{shiftId}            { at, by }  an oil check taken off the Vehicle checks tab
 //   garage/oil_shown/{ek}/{shiftId}              { at, by }  a cleared oil check brought back from search (shows even when older)
