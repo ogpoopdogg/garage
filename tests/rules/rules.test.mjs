@@ -178,12 +178,17 @@ test('read and cleared marks: a problem can only be cleared once it\'s fixed; oi
   await assertFails(db.ref('garage/problem_reads/open1').set({ by: 'x' }));
   await assertFails(db.ref('garage/problem_reads/open1').set({ at: 5, why: 'x' }));
   await assertFails(db.ref('garage/problem_reads/bad id').set(m));
+  await assertSucceeds(db.ref('garage/problem_sent/open1').set(m));
+  await assertSucceeds(db.ref('garage/problem_sent/fixed1').set(m));
+  await assertFails(db.ref('garage/problem_sent/open1').set({ by: 'x' }));
+  await assertFails(db.ref('garage/problem_sent/open1').set({ at: 5, chat: 'x' }));
   await assertSucceeds(db.ref('garage/oil_cleared/matt@ec,com/-Nshift_1').set(m));
   await assertSucceeds(db.ref('garage/oil_shown/matt@ec,com/-Nshift_2').set(m));
   await assertFails(db.ref('garage/oil_cleared/matt@ec,com/-Nshift_1').set({ at: 'today' }));
   await assertFails(db.ref('garage/oil_shown/matt@ec,com').set(true));
   const matt = as('matt@ec.com');
   await assertFails(matt.ref('garage/problem_reads/open1').set(m));
+  await assertFails(matt.ref('garage/problem_sent/open1').set(m));
   await assertFails(matt.ref('garage/oil_cleared').once('value'));
 });
 
@@ -220,7 +225,7 @@ test('staff can read and change the vehicle records', async () => {
 test('staff can\'t open the rest of Garage', async () => {
   const db = await staff('sam@ec.com');
   await assertFails(db.ref('garage').once('value'));
-  for (const p of ['problem_edits', 'problem_reads', 'problem_cleared', 'oil_cleared', 'oil_shown']) await assertFails(db.ref('garage/' + p).once('value'));
+  for (const p of ['problem_edits', 'problem_reads', 'problem_sent', 'problem_cleared', 'oil_cleared', 'oil_shown']) await assertFails(db.ref('garage/' + p).once('value'));
   await assertFails(db.ref('garage/problem_reads/r1').set({ at: 1, by: 'sam@ec.com' }));
   await assertFails(db.ref('garage/oil_cleared/sam@ec,com/s1').set({ at: 1, by: 'sam@ec.com' }));
   await assertFails(db.ref('garage/categories/x').set({ name: 'Brakes', order: 1 }));
