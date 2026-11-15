@@ -1,9 +1,10 @@
 {
   "rules": {
     "garage": {
-      ".read": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
+      ".read": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
       ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
       "categories": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$cat": {
           ".validate": "$cat.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['name'])",
@@ -36,6 +37,7 @@
         }
       },
       "vehicles": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$vkey": {
           ".validate": "$vkey.matches(/^[a-z0-9]{1,60}$/)",
@@ -282,6 +284,7 @@
         }
       },
       "trash": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$tid": {
           ".write": "auth != null && root.child('staff').child(auth.uid).val() == true && ((!data.exists() && newData.child('kind').val() !== 'vehicle') || (!newData.exists() && data.child('id').val().length > 0 && ((data.child('kind').val() === 'item' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/items/' + data.child('id').val()).exists()) || (data.child('kind').val() === 'service' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/service/' + data.child('id').val()).exists()) || (data.child('kind').val() === 'reminder' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/reminders/' + data.child('id').val()).exists()))))",
@@ -313,6 +316,7 @@
         }
       },
       "history": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$vkey": {
           ".validate": "$vkey.matches(/^([a-z0-9]{1,60}|_all)$/)",
@@ -335,6 +339,7 @@
         }
       },
       "problem_edits": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/)",
           "$e": {
@@ -358,6 +363,7 @@
         }
       },
       "problem_reads": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at'])",
           "at": {
@@ -372,6 +378,7 @@
         }
       },
       "problem_sent": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at'])",
           "at": {
@@ -386,6 +393,7 @@
         }
       },
       "problem_cleared": {
+        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at']) && newData.parent().parent().parent().child('timeclock/van_reports/' + $rid + '/text').exists() && newData.parent().parent().parent().child('timeclock/van_reports/' + $rid + '/status').val() !== 'open'",
           "at": {

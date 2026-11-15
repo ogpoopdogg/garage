@@ -972,7 +972,10 @@
         // [vehicle key, part] of a vehicle view ("v:12/parts" -> ["12", "parts"])
         const vParts = v => { const r = v.slice(2), i = r.indexOf("/"); return i < 0 ? [r, ""] : [r.slice(0, i), r.slice(i + 1)]; };
         const now = () => Date.now() + serverOffset;
-        const isAdmin = () => role === "admin";
+        // Staff get the same Garage as the admins (Justin, 2026-11-15): every tab and the problems. Oil checks and the schedule: see isBoss()
+        const isAdmin = () => role === "admin" || role === "staff";
+        // Oil checks (mark as read, clear, bring back) and the oil check schedule: staff see them, only the admins change them
+        const isBoss = () => role === "admin";
         const liveReady = () => NEED.every(k => loaded[k] || (k === "reports" && !isAdmin()));
         const ready = () => liveReady() || savedCopyAt > 0;
         // No signal: Firebase says it's not connected, and it isn't just starting up
@@ -1155,12 +1158,12 @@
             setTimeout(render, 4100); // shows the no-signal note if Firebase still hasn't connected
             render();
         }
-        // Staff get the vehicle records: info and parts, service, reminders, km, the Trash for those, and the Changes.
-        // Vehicle checks, the oil schedule, categories, and adding or removing vehicles stay with the admins.
+        // Staff and admins get the same Garage (isAdmin() is true for both); kept so a role can be split again later.
         function applyRole() {
             const a = isAdmin();
             document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"]').forEach(b => { b.hidden = !a; });
             $("addVehicleBtn").hidden = !a;
+            $("oilClearAll").hidden = !isBoss();
             $("vehiclesSub").textContent = a ? "Everything we know about each vehicle: parts, problems, oil checks and service." : "Everything we know about each vehicle: parts, service and reminders.";
             fromHash(); // the tab in the address again, now that it's known which tabs this person has
         }
@@ -1547,8 +1550,9 @@
             return '<div class="oil-row" data-oil="' + esc(v.key) + '"><div class="oil-head"><div><strong>' + esc(v.name) + "</strong>" +
                 (o.plan.own ? "" : ' <span class="muted">· same as all vehicles (' + esc(oilPlanText(def)) + ")</span>") +
                 '<div class="muted">' + lastCheckText(o.last) + "</div></div>" + o.tag + "</div>" +
+                (!isBoss() ? '<div class="oil-ctl"><span class="muted">' + (o.plan.own ? esc(oilPlanText(o.plan)) : "Same as all vehicles") + "</span></div></div>" :
                 '<div class="oil-ctl">' + oilControls(o.plan, !o.plan.own) +
-                (o.next !== null && o.next !== "shift" && !o.due ? '<button type="button" class="btn sm ghost" data-oil-ask>Ask at next shift</button>' : "") + "</div></div>";
+                (o.next !== null && o.next !== "shift" && !o.due ? '<button type="button" class="btn sm ghost" data-oil-ask>Ask at next shift</button>' : "") + "</div></div>");
         }
         const typingNumber = box => box.contains(document.activeElement) && document.activeElement.matches("input[type=number], [data-keep]");
         function renderOilPlan() {
@@ -1558,7 +1562,7 @@
             if (!ready()) { setHtml(box, loadingHtml()); return; }
             const def = cleanOilPlan(oilPlans.def);
             const rows = ['<div class="oil-row def" data-oil=""><div class="oil-head"><strong>All vehicles</strong><span class="muted">Used by every vehicle set to "Same as all vehicles"</span></div>' +
-                '<div class="oil-ctl">' + oilControls(def) + "</div></div>"];
+                '<div class="oil-ctl">' + (isBoss() ? oilControls(def) : '<span class="muted">' + esc(oilPlanText(def)) + "</span>") + "</div></div>"];
             for (const v of vehicles.filter(v => v.inClock)) rows.push(oilRow(v, def));
             if (rows.length === 1) rows.push('<p class="hint" style="margin:0">No vehicles yet. Each vehicle drivers can pick on the time clock shows up here.</p>');
             setHtml(box, rows.join(""));
@@ -1583,7 +1587,7 @@
         // Saved as soon as it's changed, from either place a schedule row shows up
         document.addEventListener("change", async e => {
             const row = e.target.closest("[data-oil]");
-            if (!row) return;
+            if (!row || !isBoss()) return;
             const key = row.dataset.oil, isDef = key === "";
             if (e.target.dataset.day && !row.querySelector("[data-day]:checked")) { e.target.checked = true; toast("Pick at least one day, or choose Never.", true); return; }
             const plan = oilPlanFromRow(row, e.target.dataset.f === "mode");
@@ -1599,7 +1603,7 @@
         });
         document.addEventListener("click", async e => {
             const b = e.target.closest("[data-oil-ask]");
-            if (!b) return;
+            if (!b || !isBoss()) return;
             const key = b.closest("[data-oil]").dataset.oil;
             try {
                 await write({ [P.oilPlan + "/ask/" + key]: serverTimestamp() }, { vkey: key, text: "Asked for an oil check at the next shift" });
@@ -1657,16 +1661,16 @@
             const detail = (withVehicle && o.vname ? "Vehicle " + vehicleLink(o.vkey, o.vname) + " · " : "") + (o.state === "waiting" ? "On the clock since " + esc(fmtTime(s.in))
                 : o.state === "checked" ? (s.oil.how === "out" ? "Said so at punch out, " : s.oil.how === "swap" ? "Said so when handing off the vehicle, " : "Ticked the box, ") + esc(fmtTime(s.oil.at))
                 : esc(g.oilMissWhy(s)));
-            const cleared = o.cleared;
-            return '<div class="entry' + (cleared ? " cleared" : o.state === "waiting" ? " waiting" : o.open ? "" : " done") + '"' + (cleared ? ' data-oilback="' + esc(oilId(o)) + '" title="Tap to bring it back"' : "") +
+            const cleared = o.cleared, boss = isBoss();
+            return '<div class="entry' + (cleared ? " cleared" : o.state === "waiting" ? " waiting" : o.open ? "" : " done") + '"' + (cleared && boss ? ' data-oilback="' + esc(oilId(o)) + '" title="Tap to bring it back"' : "") +
                 '><div class="e-top"><span class="e-who">' + esc(empName(o.ek)) + '</span><span class="e-when">' + esc(fmtKey(dayKey(s.in))) + "</span></div>" +
                 '<div class="e-what">' + what + '</div><div class="e-detail">' + detail + "</div>" +
                 (!o.open && s.oil && s.oil.seenBy ? '<div class="e-reply">Read · ' + esc(who(s.oil.seenBy)) + (s.oil.seenAt ? " · " + esc(ago(s.oil.seenAt)) : "") + "</div>" : "") +
-                (cleared ? '<div class="e-read">' + markText("Cleared", oilMark(oilCleared, o)) + ". Tap to bring it back.</div>" : "") +
-                '<div class="e-actions">' + (cleared ? '<button type="button" class="btn sm primary" data-oilback="' + esc(oilId(o)) + '">Bring back</button>'
+                (cleared ? '<div class="e-read">' + markText("Cleared", oilMark(oilCleared, o)) + (boss ? ". Tap to bring it back." : ".") + "</div>" : "") +
+                (!boss ? "</div>" : '<div class="e-actions">' + (cleared ? '<button type="button" class="btn sm primary" data-oilback="' + esc(oilId(o)) + '">Bring back</button>'
                     : (o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(oilId(o)) + '">Mark as read</button>' : "") +
                     // one still on the clock can't be cleared yet: it may still be missed
-                    (o.state !== "waiting" ? '<button type="button" class="btn sm ghost" data-oilclear="' + esc(oilId(o)) + '">Clear</button>' : "")) + "</div></div>";
+                    (o.state !== "waiting" ? '<button type="button" class="btn sm ghost" data-oilclear="' + esc(oilId(o)) + '">Clear</button>' : "")) + "</div></div>");
         }
         const empty = text => '<div class="empty">' + text + "</div>";
 
@@ -1811,6 +1815,7 @@
         // Shifts from picked dates (and brought-back ones) aren't live, so a check marked as read is changed here too
         const seenHere = list => list.forEach(o => { if (o.open) o.s.oil = Object.assign({}, o.s.oil, { seenBy: by(), seenAt: now() }); });
         $("oilClearAll").addEventListener("click", async () => {
+            if (!isBoss()) return;
             const d = lookData();
             const list = (oilSearching() ? oilFound(d) || [] : d.recent).filter(o => !o.cleared && o.state !== "waiting");
             if (!list.length) return;
@@ -1824,6 +1829,7 @@
             catch (err) { toast("Couldn't clear them: " + errMsg(err), true); }
         });
         document.addEventListener("click", async e => {
+            if (!isBoss() && e.target.closest("[data-oilseen], [data-oilclear], [data-oilback]")) return;
             const seen = e.target.closest("[data-oilseen]");
             if (seen) {
                 const o = findOil(seen.dataset.oilseen);
@@ -2196,8 +2202,8 @@
                 '<div class="oil-hist"><div class="label">Last ' + oilDays + " days</div>" +
                 (oils.length ? oils.map(o => '<div class="oil-line"><span>' + esc(fmtKey(dayKey(o.s.in))) + " · " + esc(empName(o.ek)) + "</span>" +
                     (o.state === "checked" ? '<span class="tag live">Checked ' + esc(fmtTime(o.s.oil.at)) + "</span>" : o.state === "waiting" ? '<span class="tag warn">Not checked yet</span>'
-                        : o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Mark as read</button>'
-                        : '<span class="tag" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · read" : "") + "</span>") + "</div>").join("")
+                        : o.open && isBoss() ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Mark as read</button>'
+                        : '<span class="tag' + (o.open ? " warn" : "") + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · read" : "") + "</span>") + "</div>").join("")
                     : '<p class="hint" style="margin-top:6px">' + (loaded.employees ? "No oil checks on shifts in this vehicle." : "Loading…") + "</p>") +
                 '<button type="button" class="btn sm ghost" data-oil-older style="margin-top:8px">Show older</button></div></div>';
 

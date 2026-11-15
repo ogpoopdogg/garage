@@ -7,7 +7,7 @@
 // - Firebase's own traffic (the database and sign-in) always goes straight to the network. With no signal the page
 //   shows the data it saved on the device last time (garage.html, "saved copy").
 
-const CACHE = "garage-v3";
+const CACHE = "garage-v4";
 const SHELL = [
     "./", "garage.html", "garage-core.js", "garage.webmanifest",
     "../timeclock/tc-core.js", "../timeclock/firebase-config.js",
