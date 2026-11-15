@@ -1161,7 +1161,7 @@
             const a = isAdmin();
             document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"]').forEach(b => { b.hidden = !a; });
             $("addVehicleBtn").hidden = !a;
-            $("vehiclesSub").textContent = a ? "Everything we know about each vehicle: parts, problems, oil checks and service." : "Everything we know about each vehicle: parts, service and reminders.";
+            $("vehiclesSub").textContent = a ? "Everything we know about each vehicle: parts, problems, oil checks and service." : "Everything we know about each vehicle: parts, problems, service and reminders.";
             fromHash(); // the tab in the address again, now that it's known which tabs this person has
         }
 
@@ -1183,8 +1183,13 @@
             sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
             if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); saveCopySoon(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
             syncHistory();
+            // Staff see and report each vehicle's problems. If the rules don't let them read yet, the rest of Garage still works.
+            if (!isAdmin()) {
+                unsubs.push(onValue(ref(db, P.vanReports), s => { reports = s.val() || {}; loaded.reports = true; saveCopySoon(); render(); },
+                    err => { console.warn("Vehicle problems:", err); loaded.reports = true; render(); }));
+                return;
+            }
             // The rest is the time clock's Vehicle checks and oil checks (every driver's shifts): admins only
-            if (!isAdmin()) return;
             sub("reports", ref(db, P.vanReports), s => { reports = s.val() || {}; });
             sub("problemEdits", ref(db, G.problemEdits), s => { problemEdits = s.val() || {}; });
             sub("problemReads", ref(db, G.problemReads), s => { problemReads = s.val() || {}; });
@@ -1626,6 +1631,11 @@
         // onTab: on the Vehicle checks tab (with the vehicle's name, and Clear); a vehicle's own page keeps every problem
         function problemHtml(r, onTab) {
             const done = r.status !== "open";
+            // staff: see it and copy it; marking read or fixed, editing and Send to chat stay with the admins
+            if (!isAdmin()) return '<div class="entry' + (done ? " done" : "") + '"><div class="e-top"><span class="e-who">' + esc(r.name || empName(r.ek)) + '</span><span class="e-when">' + esc(ago(r.at)) + "</span></div>" +
+                '<div class="e-note">' + esc(r.text) + "</div>" +
+                (done ? '<div class="e-reply">Fixed' + (r.fixNote ? ": " + esc(r.fixNote) : "") + (r.by ? " · " + esc(who(r.by)) : "") + (r.doneAt ? " · " + esc(ago(r.doneAt)) : "") + "</div>" : "") +
+                '<div class="e-actions"><button type="button" class="btn sm ghost" data-vancopy="' + esc(r.id) + '" title="Copy it to paste anywhere">Copy</button></div></div>';
             const who_ = r.name || empName(r.ek);
             const cleared = onTab && r.cleared;
             return '<div class="entry' + (cleared ? " cleared" : done ? " done" : "") + '"' + (cleared ? ' data-vanback="' + esc(r.id) + '" title="Tap to bring it back"' : "") + '><div class="e-top"><span class="e-who">' +
@@ -2005,7 +2015,7 @@
             return vehicles.map(v => ({ v: v, open: openBy[v.key] || 0, oil: v.inClock && isAdmin() ? oilDueTag(v) : null, svc: g.serviceDue(stored[v.key], t) }));
         }
         const FILTERS = [["all", "All", () => true], ["problems", "Open problems", x => x.open > 0], ["oil", "Oil due", x => !!(x.oil && x.oil.due)], ["service", "Service due", x => !!x.svc]];
-        const filtersFor = () => isAdmin() ? FILTERS : FILTERS.filter(x => x[0] === "all" || x[0] === "service");
+        const filtersFor = () => isAdmin() ? FILTERS : FILTERS.filter(x => x[0] !== "oil");
         function renderVehicles() {
             const q = $("search").value;
             const box = $("vehicleList");
@@ -2207,12 +2217,12 @@
                 return;
             }
             setHtml(box, '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
-                (!a ? "" : openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
+                (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
                 (v.inClock && a ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
                 '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button>' + (a ? '<button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button>' : "") + "</div></div>" +
                 '<div class="v-cols"><div>' +
-                    (!a ? "" : '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
+                    ('<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
                         '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>") +
                     '<div class="card"><div class="card-head"><div><h3>Info and parts</h3><p class="hint">Bulbs, fluids, sizes, part numbers. Categories are the same for every vehicle.</p></div></div>' + info + "</div>" +
                 "</div><div>" +
@@ -2232,7 +2242,7 @@
         const openCats = new Set(); // the Parts & info categories opened on a phone ("12|lights")
         function phoneVehicle(o) {
             const { key, v, s, a, openN, probs, groups, rems, svcDue } = o;
-            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["service", "km", "parts", "changes"];
+            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["problems", "service", "km", "parts", "changes"];
             const part = parts.includes(o.part) ? o.part : "";
             const km = g.currentKm(s);
             const title = (t, sub) => '<h1 class="ph-title">' + t + '</h1><p class="ph-sub">' + (sub || esc(v.name)) + "</p>";
@@ -2269,13 +2279,13 @@
             const oil = v.inClock && a ? oilDueTag(v) : null;
             const due = rems.filter(r => r.st.state !== "ok");
             const attn = [];
-            if (a) probs.filter(r => r.status === "open").forEach(r => attn.push(["problems", "red", r.text]));
+            probs.filter(r => r.status === "open").forEach(r => attn.push(["problems", "red", r.text]));
             due.forEach(r => attn.push(["service", r.st.state === "overdue" ? "red" : "orange", r.what + (r.st.state === "overdue" ? " (overdue)" : " (due soon)")]));
             if (oil && oil.due) attn.push(["oil", "red", "Oil check due"]);
             return '<div class="ph-vhead"><h1>' + esc(v.name) + "</h1>" + (o.model ? '<div class="v-model">' + esc(o.model) + "</div>" : "") +
                     '<div class="ph-km">' + (km !== null ? esc(g.fmtKm(km)) : "Km not known yet") + "</div></div>" +
                 '<div class="ph-acts">' +
-                    (a ? act("problems", "red", PI.warn, "Problems", openN ? openN + " open" : "Report or fix", openN) : "") +
+                    act("problems", "red", PI.warn, "Problems", openN ? openN + " open" : a ? "Report or fix" : "Report one", openN) +
                     act("service", "", PI.wrench, "Service", svcDue === "overdue" ? "Overdue" : svcDue === "soon" ? "Due soon" : "Log it, see what's due") +
                     act("km", "", PI.gauge, "Update km", km !== null ? esc(g.fmtKm(km)) + " now" : "") +
                     act("parts", "", PI.bulb, "Parts &amp; info", nItems ? nItems + (nItems === 1 ? " thing saved" : " things saved") : "Bulbs, fluids, tires…") +
