@@ -972,7 +972,10 @@
         // [vehicle key, part] of a vehicle view ("v:12/parts" -> ["12", "parts"])
         const vParts = v => { const r = v.slice(2), i = r.indexOf("/"); return i < 0 ? [r, ""] : [r.slice(0, i), r.slice(i + 1)]; };
         const now = () => Date.now() + serverOffset;
-        const isAdmin = () => role === "admin";
+        // Staff get the same Garage as the admins (Justin, 2026-11-15): every tab and the problems. Oil checks and the schedule: see isBoss()
+        const isAdmin = () => role === "admin" || role === "staff";
+        // Oil checks (mark as read, clear, bring back) and the oil check schedule: staff see them, only the admins change them
+        const isBoss = () => role === "admin";
         const liveReady = () => NEED.every(k => loaded[k] || (k === "reports" && !isAdmin()));
         const ready = () => liveReady() || savedCopyAt > 0;
         // No signal: Firebase says it's not connected, and it isn't just starting up
@@ -1155,13 +1158,13 @@
             setTimeout(render, 4100); // shows the no-signal note if Firebase still hasn't connected
             render();
         }
-        // Staff get the vehicle records: info and parts, service, reminders, km, the Trash for those, and the Changes.
-        // Vehicle checks, the oil schedule, categories, and adding or removing vehicles stay with the admins.
+        // Staff and admins get the same Garage (isAdmin() is true for both); kept so a role can be split again later.
         function applyRole() {
             const a = isAdmin();
             document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"]').forEach(b => { b.hidden = !a; });
             $("addVehicleBtn").hidden = !a;
-            $("vehiclesSub").textContent = a ? "Everything we know about each vehicle: parts, problems, oil checks and service." : "Everything we know about each vehicle: parts, problems, service and reminders.";
+            $("oilClearAll").hidden = !isBoss();
+            $("vehiclesSub").textContent = a ? "Everything we know about each vehicle: parts, problems, oil checks and service." : "Everything we know about each vehicle: parts, service and reminders.";
             fromHash(); // the tab in the address again, now that it's known which tabs this person has
         }
 
@@ -1183,13 +1186,8 @@
             sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
             if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); saveCopySoon(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
             syncHistory();
-            // Staff see and report each vehicle's problems. If the rules don't let them read yet, the rest of Garage still works.
-            if (!isAdmin()) {
-                unsubs.push(onValue(ref(db, P.vanReports), s => { reports = s.val() || {}; loaded.reports = true; saveCopySoon(); render(); },
-                    err => { console.warn("Vehicle problems:", err); loaded.reports = true; render(); }));
-                return;
-            }
             // The rest is the time clock's Vehicle checks and oil checks (every driver's shifts): admins only
+            if (!isAdmin()) return;
             sub("reports", ref(db, P.vanReports), s => { reports = s.val() || {}; });
             sub("problemEdits", ref(db, G.problemEdits), s => { problemEdits = s.val() || {}; });
             sub("problemReads", ref(db, G.problemReads), s => { problemReads = s.val() || {}; });
@@ -1552,8 +1550,9 @@
             return '<div class="oil-row" data-oil="' + esc(v.key) + '"><div class="oil-head"><div><strong>' + esc(v.name) + "</strong>" +
                 (o.plan.own ? "" : ' <span class="muted">· same as all vehicles (' + esc(oilPlanText(def)) + ")</span>") +
                 '<div class="muted">' + lastCheckText(o.last) + "</div></div>" + o.tag + "</div>" +
+                (!isBoss() ? '<div class="oil-ctl"><span class="muted">' + (o.plan.own ? esc(oilPlanText(o.plan)) : "Same as all vehicles") + "</span></div></div>" :
                 '<div class="oil-ctl">' + oilControls(o.plan, !o.plan.own) +
-                (o.next !== null && o.next !== "shift" && !o.due ? '<button type="button" class="btn sm ghost" data-oil-ask>Ask at next shift</button>' : "") + "</div></div>";
+                (o.next !== null && o.next !== "shift" && !o.due ? '<button type="button" class="btn sm ghost" data-oil-ask>Ask at next shift</button>' : "") + "</div></div>");
         }
         const typingNumber = box => box.contains(document.activeElement) && document.activeElement.matches("input[type=number], [data-keep]");
         function renderOilPlan() {
@@ -1563,7 +1562,7 @@
             if (!ready()) { setHtml(box, loadingHtml()); return; }
             const def = cleanOilPlan(oilPlans.def);
             const rows = ['<div class="oil-row def" data-oil=""><div class="oil-head"><strong>All vehicles</strong><span class="muted">Used by every vehicle set to "Same as all vehicles"</span></div>' +
-                '<div class="oil-ctl">' + oilControls(def) + "</div></div>"];
+                '<div class="oil-ctl">' + (isBoss() ? oilControls(def) : '<span class="muted">' + esc(oilPlanText(def)) + "</span>") + "</div></div>"];
             for (const v of vehicles.filter(v => v.inClock)) rows.push(oilRow(v, def));
             if (rows.length === 1) rows.push('<p class="hint" style="margin:0">No vehicles yet. Each vehicle drivers can pick on the time clock shows up here.</p>');
             setHtml(box, rows.join(""));
@@ -1588,7 +1587,7 @@
         // Saved as soon as it's changed, from either place a schedule row shows up
         document.addEventListener("change", async e => {
             const row = e.target.closest("[data-oil]");
-            if (!row) return;
+            if (!row || !isBoss()) return;
             const key = row.dataset.oil, isDef = key === "";
             if (e.target.dataset.day && !row.querySelector("[data-day]:checked")) { e.target.checked = true; toast("Pick at least one day, or choose Never.", true); return; }
             const plan = oilPlanFromRow(row, e.target.dataset.f === "mode");
@@ -1604,7 +1603,7 @@
         });
         document.addEventListener("click", async e => {
             const b = e.target.closest("[data-oil-ask]");
-            if (!b) return;
+            if (!b || !isBoss()) return;
             const key = b.closest("[data-oil]").dataset.oil;
             try {
                 await write({ [P.oilPlan + "/ask/" + key]: serverTimestamp() }, { vkey: key, text: "Asked for an oil check at the next shift" });
@@ -1631,11 +1630,6 @@
         // onTab: on the Vehicle checks tab (with the vehicle's name, and Clear); a vehicle's own page keeps every problem
         function problemHtml(r, onTab) {
             const done = r.status !== "open";
-            // staff: see it and copy it; marking read or fixed, editing and Send to chat stay with the admins
-            if (!isAdmin()) return '<div class="entry' + (done ? " done" : "") + '"><div class="e-top"><span class="e-who">' + esc(r.name || empName(r.ek)) + '</span><span class="e-when">' + esc(ago(r.at)) + "</span></div>" +
-                '<div class="e-note">' + esc(r.text) + "</div>" +
-                (done ? '<div class="e-reply">Fixed' + (r.fixNote ? ": " + esc(r.fixNote) : "") + (r.by ? " · " + esc(who(r.by)) : "") + (r.doneAt ? " · " + esc(ago(r.doneAt)) : "") + "</div>" : "") +
-                '<div class="e-actions"><button type="button" class="btn sm ghost" data-vancopy="' + esc(r.id) + '" title="Copy it to paste anywhere">Copy</button></div></div>';
             const who_ = r.name || empName(r.ek);
             const cleared = onTab && r.cleared;
             return '<div class="entry' + (cleared ? " cleared" : done ? " done" : "") + '"' + (cleared ? ' data-vanback="' + esc(r.id) + '" title="Tap to bring it back"' : "") + '><div class="e-top"><span class="e-who">' +
@@ -1667,16 +1661,16 @@
             const detail = (withVehicle && o.vname ? "Vehicle " + vehicleLink(o.vkey, o.vname) + " · " : "") + (o.state === "waiting" ? "On the clock since " + esc(fmtTime(s.in))
                 : o.state === "checked" ? (s.oil.how === "out" ? "Said so at punch out, " : s.oil.how === "swap" ? "Said so when handing off the vehicle, " : "Ticked the box, ") + esc(fmtTime(s.oil.at))
                 : esc(g.oilMissWhy(s)));
-            const cleared = o.cleared;
-            return '<div class="entry' + (cleared ? " cleared" : o.state === "waiting" ? " waiting" : o.open ? "" : " done") + '"' + (cleared ? ' data-oilback="' + esc(oilId(o)) + '" title="Tap to bring it back"' : "") +
+            const cleared = o.cleared, boss = isBoss();
+            return '<div class="entry' + (cleared ? " cleared" : o.state === "waiting" ? " waiting" : o.open ? "" : " done") + '"' + (cleared && boss ? ' data-oilback="' + esc(oilId(o)) + '" title="Tap to bring it back"' : "") +
                 '><div class="e-top"><span class="e-who">' + esc(empName(o.ek)) + '</span><span class="e-when">' + esc(fmtKey(dayKey(s.in))) + "</span></div>" +
                 '<div class="e-what">' + what + '</div><div class="e-detail">' + detail + "</div>" +
                 (!o.open && s.oil && s.oil.seenBy ? '<div class="e-reply">Read · ' + esc(who(s.oil.seenBy)) + (s.oil.seenAt ? " · " + esc(ago(s.oil.seenAt)) : "") + "</div>" : "") +
-                (cleared ? '<div class="e-read">' + markText("Cleared", oilMark(oilCleared, o)) + ". Tap to bring it back.</div>" : "") +
-                '<div class="e-actions">' + (cleared ? '<button type="button" class="btn sm primary" data-oilback="' + esc(oilId(o)) + '">Bring back</button>'
+                (cleared ? '<div class="e-read">' + markText("Cleared", oilMark(oilCleared, o)) + (boss ? ". Tap to bring it back." : ".") + "</div>" : "") +
+                (!boss ? "</div>" : '<div class="e-actions">' + (cleared ? '<button type="button" class="btn sm primary" data-oilback="' + esc(oilId(o)) + '">Bring back</button>'
                     : (o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(oilId(o)) + '">Mark as read</button>' : "") +
                     // one still on the clock can't be cleared yet: it may still be missed
-                    (o.state !== "waiting" ? '<button type="button" class="btn sm ghost" data-oilclear="' + esc(oilId(o)) + '">Clear</button>' : "")) + "</div></div>";
+                    (o.state !== "waiting" ? '<button type="button" class="btn sm ghost" data-oilclear="' + esc(oilId(o)) + '">Clear</button>' : "")) + "</div></div>");
         }
         const empty = text => '<div class="empty">' + text + "</div>";
 
@@ -1821,6 +1815,7 @@
         // Shifts from picked dates (and brought-back ones) aren't live, so a check marked as read is changed here too
         const seenHere = list => list.forEach(o => { if (o.open) o.s.oil = Object.assign({}, o.s.oil, { seenBy: by(), seenAt: now() }); });
         $("oilClearAll").addEventListener("click", async () => {
+            if (!isBoss()) return;
             const d = lookData();
             const list = (oilSearching() ? oilFound(d) || [] : d.recent).filter(o => !o.cleared && o.state !== "waiting");
             if (!list.length) return;
@@ -1834,6 +1829,7 @@
             catch (err) { toast("Couldn't clear them: " + errMsg(err), true); }
         });
         document.addEventListener("click", async e => {
+            if (!isBoss() && e.target.closest("[data-oilseen], [data-oilclear], [data-oilback]")) return;
             const seen = e.target.closest("[data-oilseen]");
             if (seen) {
                 const o = findOil(seen.dataset.oilseen);
@@ -2015,7 +2011,7 @@
             return vehicles.map(v => ({ v: v, open: openBy[v.key] || 0, oil: v.inClock && isAdmin() ? oilDueTag(v) : null, svc: g.serviceDue(stored[v.key], t) }));
         }
         const FILTERS = [["all", "All", () => true], ["problems", "Open problems", x => x.open > 0], ["oil", "Oil due", x => !!(x.oil && x.oil.due)], ["service", "Service due", x => !!x.svc]];
-        const filtersFor = () => isAdmin() ? FILTERS : FILTERS.filter(x => x[0] !== "oil");
+        const filtersFor = () => isAdmin() ? FILTERS : FILTERS.filter(x => x[0] === "all" || x[0] === "service");
         function renderVehicles() {
             const q = $("search").value;
             const box = $("vehicleList");
@@ -2206,8 +2202,8 @@
                 '<div class="oil-hist"><div class="label">Last ' + oilDays + " days</div>" +
                 (oils.length ? oils.map(o => '<div class="oil-line"><span>' + esc(fmtKey(dayKey(o.s.in))) + " · " + esc(empName(o.ek)) + "</span>" +
                     (o.state === "checked" ? '<span class="tag live">Checked ' + esc(fmtTime(o.s.oil.at)) + "</span>" : o.state === "waiting" ? '<span class="tag warn">Not checked yet</span>'
-                        : o.open ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Mark as read</button>'
-                        : '<span class="tag" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · read" : "") + "</span>") + "</div>").join("")
+                        : o.open && isBoss() ? '<button type="button" class="btn sm primary" data-oilseen="' + esc(o.ek + "|" + o.s.id) + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked · Mark as read</button>'
+                        : '<span class="tag' + (o.open ? " warn" : "") + '" title="' + esc(g.oilMissWhy(o.s)) + '">Not checked' + (o.s.oil && o.s.oil.seenBy ? " · read" : "") + "</span>") + "</div>").join("")
                     : '<p class="hint" style="margin-top:6px">' + (loaded.employees ? "No oil checks on shifts in this vehicle." : "Loading…") + "</p>") +
                 '<button type="button" class="btn sm ghost" data-oil-older style="margin-top:8px">Show older</button></div></div>';
 
@@ -2217,12 +2213,12 @@
                 return;
             }
             setHtml(box, '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
-                (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
+                (!a ? "" : openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
                 (v.inClock && a ? oilDueTag(v).tag : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
                 '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button>' + (a ? '<button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button>' : "") + "</div></div>" +
                 '<div class="v-cols"><div>' +
-                    ('<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
+                    (!a ? "" : '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
                         '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>") +
                     '<div class="card"><div class="card-head"><div><h3>Info and parts</h3><p class="hint">Bulbs, fluids, sizes, part numbers. Categories are the same for every vehicle.</p></div></div>' + info + "</div>" +
                 "</div><div>" +
@@ -2242,7 +2238,7 @@
         const openCats = new Set(); // the Parts & info categories opened on a phone ("12|lights")
         function phoneVehicle(o) {
             const { key, v, s, a, openN, probs, groups, rems, svcDue } = o;
-            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["problems", "service", "km", "parts", "changes"];
+            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["service", "km", "parts", "changes"];
             const part = parts.includes(o.part) ? o.part : "";
             const km = g.currentKm(s);
             const title = (t, sub) => '<h1 class="ph-title">' + t + '</h1><p class="ph-sub">' + (sub || esc(v.name)) + "</p>";
@@ -2279,13 +2275,13 @@
             const oil = v.inClock && a ? oilDueTag(v) : null;
             const due = rems.filter(r => r.st.state !== "ok");
             const attn = [];
-            probs.filter(r => r.status === "open").forEach(r => attn.push(["problems", "red", r.text]));
+            if (a) probs.filter(r => r.status === "open").forEach(r => attn.push(["problems", "red", r.text]));
             due.forEach(r => attn.push(["service", r.st.state === "overdue" ? "red" : "orange", r.what + (r.st.state === "overdue" ? " (overdue)" : " (due soon)")]));
             if (oil && oil.due) attn.push(["oil", "red", "Oil check due"]);
             return '<div class="ph-vhead"><h1>' + esc(v.name) + "</h1>" + (o.model ? '<div class="v-model">' + esc(o.model) + "</div>" : "") +
                     '<div class="ph-km">' + (km !== null ? esc(g.fmtKm(km)) : "Km not known yet") + "</div></div>" +
                 '<div class="ph-acts">' +
-                    act("problems", "red", PI.warn, "Problems", openN ? openN + " open" : a ? "Report or fix" : "Report one", openN) +
+                    (a ? act("problems", "red", PI.warn, "Problems", openN ? openN + " open" : "Report or fix", openN) : "") +
                     act("service", "", PI.wrench, "Service", svcDue === "overdue" ? "Overdue" : svcDue === "soon" ? "Due soon" : "Log it, see what's due") +
                     act("km", "", PI.gauge, "Update km", km !== null ? esc(g.fmtKm(km)) + " now" : "") +
                     act("parts", "", PI.bulb, "Parts &amp; info", nItems ? nItems + (nItems === 1 ? " thing saved" : " things saved") : "Bulbs, fluids, tires…") +
