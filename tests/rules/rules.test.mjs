@@ -272,3 +272,28 @@ test('AI marks and check marks on an entry\'s fields: { at, by } per field, staf
   const matt = as('matt@ec.com');
   await assertFails(matt.ref(p + '/ok/value').set({ at: 1 }));
 });
+
+test('My vehicles (garage_personal/{uid}): only that staff member or admin reads and writes their own', async () => {
+  const sam = await staff('sam@ec.com');
+  const mine = 'garage_personal/' + 'sam@ec.com'.replace(/[^a-z]/g, '');
+  await assertSucceeds(sam.ref().update({ [mine + '/vehicles/civic/name']: 'Civic', [mine + '/vehicles/civic/listed']: true, [mine + '/history/civic/h1']: { at: 1, by: 'sam@ec.com', text: 'Vehicle added to My vehicles' } }));
+  await assertSucceeds(sam.ref(mine + '/vehicles/civic/items/i1').set(item));
+  await assertSucceeds(sam.ref(mine).once('value'));
+  // their own trash: put in, and delete for good
+  await assertSucceeds(sam.ref(mine + '/trash/t1').set({ at: 1, by: 'sam@ec.com', kind: 'vehicle', vkey: 'civic', vname: 'Civic', id: '', data: { name: 'Civic' } }));
+  await assertSucceeds(sam.ref(mine + '/trash/t1').remove());
+  // the same checks as the company vehicles
+  await assertFails(sam.ref(mine + '/vehicles/civic/items/i2').set({ label: 'No category' }));
+  await assertFails(sam.ref(mine + '/vehicles/BadKey!/name').set('x'));
+  await assertFails(sam.ref(mine + '/other').set(true));
+  // nobody else's: not other staff, not the admins, not employees, not signed out
+  const pat = await staff('pat@ec.com');
+  for (const db of [pat, admin(), as('matt@ec.com'), env.unauthenticatedContext().database()]) {
+    await assertFails(db.ref(mine).once('value'));
+    await assertFails(db.ref(mine + '/vehicles/civic/items/i3').set(item));
+  }
+  // an admin has their own section too
+  await assertSucceeds(admin().ref('garage_personal/' + 'justin@ec.com'.replace(/[^a-z]/g, '') + '/vehicles/truck/name').set('Truck'));
+  // an employee who isn't staff can't have one
+  await assertFails(as('matt@ec.com').ref('garage_personal/' + 'matt@ec.com'.replace(/[^a-z]/g, '') + '/vehicles/car/name').set('Car'));
+});
