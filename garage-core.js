@@ -27,7 +27,8 @@
 //   garage/problem_cleared/{reportId}            { at, by }  a fixed problem taken off the Vehicle checks tab
 //   garage/oil_cleared/{ek}/{shiftId}            { at, by }  an oil check taken off the Vehicle checks tab
 //   garage/oil_shown/{ek}/{shiftId}              { at, by }  a cleared oil check brought back from search (shows even when older)
-//   garage_personal/{uid}/vehicles|trash|history  each person's own vehicles (My vehicles), the same shapes as above;
+//   garage_personal/{uid}/vehicles|trash|history|problems|problem_edits|problem_reads|problem_sent|problem_cleared
+//                                                each person's own vehicles and problems (My vehicles), the same shapes as above;
 //                                                the rules let only that signed-in person read or write theirs
 //   (added/addedBy: who first saved it and when; at/by: the last change)
 // Read from the time clock:
