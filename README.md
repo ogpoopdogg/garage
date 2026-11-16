@@ -11,6 +11,11 @@ search, **Ask AI** and the export, and they can put entries, service and reminde
 time clock's Vehicle checks and oil checks (which come from every driver's shifts), the oil schedule, the
 categories, adding, removing or putting back vehicles, and **Delete for good** stay with the admins.
 
+**My vehicles:** the toggle at the top of the Vehicles page switches between **Company vehicles** and
+**My vehicles** — each person's own vehicles (parts, service, reminders, km, their own Trash), kept under
+`garage_personal/{uid}`. Only that signed-in person can see or change theirs; they have no time clock
+problems or oil checks.
+
 - **Info and parts:** headlight and other bulb types, fluids, tire sizes, filters, wipers,
   battery, plate and VIN, notes. Each entry has a name, a type or size, and optionally a part
   number, a *where to buy* link and a note. Each one shows who added it and who last changed it.

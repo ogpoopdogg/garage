@@ -444,6 +444,304 @@
       "$other": {
         ".validate": false
       }
+    },
+    "garage_personal": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
+        ".write": "auth != null && auth.uid === $uid && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
+        "vehicles": {
+          "$vkey": {
+            ".validate": "$vkey.matches(/^[a-z0-9]{1,60}$/)",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+            },
+            "items": {
+              "$id": {
+                ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['cat']) && (newData.hasChild('label') || newData.hasChild('value') || newData.hasChild('part') || newData.hasChild('link') || newData.hasChild('note') || newData.hasChild('extra'))",
+                "cat": {
+                  ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+                },
+                "label": {
+                  ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+                },
+                "value": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 200"
+                },
+                "part": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 80"
+                },
+                "link": {
+                  ".validate": "newData.isString() && newData.val().length <= 500 && (newData.val().beginsWith('https://') || newData.val().beginsWith('http://'))"
+                },
+                "note": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 500"
+                },
+                "extra": {
+                  ".validate": "newData.hasChildren()",
+                  "$f": {
+                    ".validate": "$f.matches(/^x[A-Za-z0-9_-]{1,30}$/) && newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
+                  }
+                },
+                "at": {
+                  ".validate": "newData.isNumber()"
+                },
+                "by": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                },
+                "added": {
+                  ".validate": "newData.isNumber()"
+                },
+                "addedBy": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                },
+                "ai": {
+                  "$f": {
+                    ".validate": "$f.matches(/^(label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/) && newData.hasChildren(['at'])",
+                    "at": {
+                      ".validate": "newData.isNumber()"
+                    },
+                    "by": {
+                      ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                    },
+                    "$other": {
+                      ".validate": false
+                    }
+                  }
+                },
+                "ok": {
+                  "$f": {
+                    ".validate": "$f.matches(/^(label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/) && newData.hasChildren(['at'])",
+                    "at": {
+                      ".validate": "newData.isNumber()"
+                    },
+                    "by": {
+                      ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                    },
+                    "$other": {
+                      ".validate": false
+                    }
+                  }
+                },
+                "edits": {
+                  "$e": {
+                    ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",
+                    "at": {
+                      ".validate": "newData.isNumber()"
+                    },
+                    "by": {
+                      ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                    },
+                    "was": {
+                      ".validate": "newData.hasChildren()",
+                      "$f": {
+                        ".validate": "$f.matches(/^(cat|label|value|part|link|note|x[A-Za-z0-9_-]{1,30})$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                      }
+                    },
+                    "$other": {
+                      ".validate": false
+                    }
+                  }
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            },
+            "service": {
+              "$id": {
+                ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['day', 'what'])",
+                "day": {
+                  ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/)"
+                },
+                "what": {
+                  ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
+                },
+                "km": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
+                },
+                "cost": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
+                },
+                "note": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 500"
+                },
+                "at": {
+                  ".validate": "newData.isNumber()"
+                },
+                "by": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                },
+                "added": {
+                  ".validate": "newData.isNumber()"
+                },
+                "addedBy": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                },
+                "edits": {
+                  "$e": {
+                    ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",
+                    "at": {
+                      ".validate": "newData.isNumber()"
+                    },
+                    "by": {
+                      ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                    },
+                    "was": {
+                      ".validate": "newData.hasChildren()",
+                      "$f": {
+                        ".validate": "$f.matches(/^(day|what|km|cost|note)$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                      }
+                    },
+                    "$other": {
+                      ".validate": false
+                    }
+                  }
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            },
+            "listed": {
+              ".validate": "newData.isBoolean()"
+            },
+            "removed": {
+              ".validate": "newData.isBoolean()"
+            },
+            "reminders": {
+              "$id": {
+                ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['what']) && (newData.hasChild('dueKm') || newData.hasChild('dueDay'))",
+                "what": {
+                  ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120"
+                },
+                "dueKm": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
+                },
+                "dueDay": {
+                  ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/)"
+                },
+                "everyKm": {
+                  ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000"
+                },
+                "everyMonths": {
+                  ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 120 && newData.val() % 1 === 0"
+                },
+                "note": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 500"
+                },
+                "added": {
+                  ".validate": "newData.isNumber()"
+                },
+                "addedBy": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                },
+                "at": {
+                  ".validate": "newData.isNumber()"
+                },
+                "by": {
+                  ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                },
+                "edits": {
+                  "$e": {
+                    ".validate": "$e.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'was'])",
+                    "at": {
+                      ".validate": "newData.isNumber()"
+                    },
+                    "by": {
+                      ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+                    },
+                    "was": {
+                      ".validate": "newData.hasChildren()",
+                      "$f": {
+                        ".validate": "$f.matches(/^(what|dueKm|dueDay|everyKm|everyMonths|note)$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                      }
+                    },
+                    "$other": {
+                      ".validate": false
+                    }
+                  }
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            },
+            "odo": {
+              ".validate": "newData.hasChildren(['km'])",
+              "km": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
+              },
+              "day": {
+                ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/)"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "by": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "trash": {
+          "$tid": {
+            ".validate": "$tid.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'by', 'kind', 'vkey', 'data'])",
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "by": {
+              ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+            },
+            "kind": {
+              ".validate": "newData.val() === 'item' || newData.val() === 'service' || newData.val() === 'reminder' || newData.val() === 'vehicle'"
+            },
+            "vkey": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{1,60}$/)"
+            },
+            "vname": {
+              ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 60"
+            },
+            "id": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "data": {
+              ".validate": "newData.hasChildren()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "history": {
+          "$vkey": {
+            ".validate": "$vkey.matches(/^([a-z0-9]{1,60}|_all)$/)",
+            "$id": {
+              ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'text'])",
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "by": {
+                ".validate": "newData.isString() && newData.val().length >= 0 && newData.val().length <= 100"
+              },
+              "text": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
     }
   }
 }
