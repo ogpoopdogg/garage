@@ -995,7 +995,7 @@
         const isBoss = () => role === "admin";
         // The company's vehicles: problems, oil checks, the time clock's vans. Not on My vehicles.
         const fleet = () => isAdmin() && !personal;
-        const liveReady = () => (personal ? ["cats", "garage"] : NEED).every(k => loaded[k] || (k === "reports" && !fleet()));
+        const liveReady = () => (personal ? ["cats", "garage", "reports"] : NEED).every(k => loaded[k] || (k === "reports" && !fleet() && !personal));
         const ready = () => liveReady() || savedCopyAt > 0;
         // No signal: Firebase says it's not connected, and it isn't just starting up
         const offline = () => !!user && !connected && (everConnected || Date.now() - signedInAt > 4000);
@@ -1197,9 +1197,13 @@
         // ---------- Company vehicles / My vehicles ----------
         // My vehicles are kept under garage_personal/{uid}: only that person can read or write them (the rules check it).
         // They use the same categories, but no problems, oil checks or time clock.
+        let REPORTS = null; // where this side's problems live: the time clock's van_reports, or the person's own
         function pointPaths() {
             const base = personal && user ? "garage_personal/" + user.uid : "garage";
             G.vehicles = base + "/vehicles"; G.trash = base + "/trash"; G.history = base + "/history";
+            G.problemEdits = base + "/problem_edits"; G.problemReads = base + "/problem_reads";
+            G.problemSent = base + "/problem_sent"; G.problemCleared = base + "/problem_cleared";
+            REPORTS = personal && user ? base + "/problems" : P.vanReports;
         }
         function savedMode(email) {
             try { const m = JSON.parse(localStorage.getItem(MODE_STORE) || "null"); return !!(m && m.email === email && m.mine); } catch (e) { return false; }
@@ -1234,16 +1238,15 @@
             sub("garage", ref(db, G.vehicles), s => { stored = s.val() || {}; syncVehicles(); });
             sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
             syncHistory();
-            if (personal) return; // My vehicles: only the person's own ones, nothing from the time clock
-            sub("vans", ref(db, P.vans), s => { vansRaw = s.val() || {}; syncVehicles(); });
-            if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); saveCopySoon(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
-            // The rest is the time clock's Vehicle checks and oil checks (every driver's shifts): admins only
-            if (!isAdmin()) return;
-            sub("reports", ref(db, P.vanReports), s => { reports = s.val() || {}; });
+            // Problems are on both sides: the time clock's van_reports, or the person's own (garage_personal/{uid}/problems)
+            sub("reports", ref(db, REPORTS), s => { reports = s.val() || {}; });
             sub("problemEdits", ref(db, G.problemEdits), s => { problemEdits = s.val() || {}; });
             sub("problemReads", ref(db, G.problemReads), s => { problemReads = s.val() || {}; });
             sub("problemSent", ref(db, G.problemSent), s => { problemSent = s.val() || {}; });
             sub("problemCleared", ref(db, G.problemCleared), s => { problemCleared = s.val() || {}; });
+            if (personal) return; // My vehicles: no van list, GPS units or oil checks from the time clock
+            sub("vans", ref(db, P.vans), s => { vansRaw = s.val() || {}; syncVehicles(); });
+            if (GPS_UNITS_ARE_VEHICLES) get(ref(db, P.gps)).then(s => { gpsRaw = s.val(); syncVehicles(); saveCopySoon(); render(); }).catch(err => toast("Couldn't load the GPS units: " + errMsg(err), true));
             sub("oilCleared", ref(db, G.oilCleared), s => { oilCleared = s.val() || {}; });
             sub("oilShown", ref(db, G.oilShown), s => { oilShown = s.val() || {}; syncShown(); });
             sub("oilPlan", ref(db, P.oilPlan), s => { oilPlans = s.val() || {}; });
@@ -1995,7 +1998,7 @@
                 const note = await ask({ title: "Mark fixed", sub: short(r.text, 140), label: "What was done (optional)", multiline: true, max: g.MAX.fixNote, placeholder: "e.g. Replaced the bulb", ok: "Mark fixed" });
                 if (note === null) return;
                 try {
-                    await write({ [P.vanReports + "/" + id + "/status"]: "fixed", [P.vanReports + "/" + id + "/fixNote"]: note.trim().slice(0, g.MAX.fixNote), [P.vanReports + "/" + id + "/by"]: by(), [P.vanReports + "/" + id + "/doneAt"]: serverTimestamp() },
+                    await write({ [REPORTS + "/" + id + "/status"]: "fixed", [REPORTS + "/" + id + "/fixNote"]: note.trim().slice(0, g.MAX.fixNote), [REPORTS + "/" + id + "/by"]: by(), [REPORTS + "/" + id + "/doneAt"]: serverTimestamp() },
                         { vkey: vanKey(r.vehicleName || ""), text: "Problem fixed: " + short(r.text, 80) + (note.trim() ? " (" + note.trim() + ")" : "") });
                     toast("Marked fixed. It stays in the list until it's cleared.");
                 } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
@@ -2009,7 +2012,7 @@
                 if (!r) return;
                 vr.disabled = true;
                 try {
-                    await write({ [P.vanReports + "/" + id + "/status"]: "open", [P.vanReports + "/" + id + "/fixNote"]: null, [P.vanReports + "/" + id + "/by"]: null, [P.vanReports + "/" + id + "/doneAt"]: null, [G.problemCleared + "/" + id]: null },
+                    await write({ [REPORTS + "/" + id + "/status"]: "open", [REPORTS + "/" + id + "/fixNote"]: null, [REPORTS + "/" + id + "/by"]: null, [REPORTS + "/" + id + "/doneAt"]: null, [G.problemCleared + "/" + id]: null },
                         { vkey: vanKey(r.vehicleName || ""), text: "Problem reopened: " + short(r.text, 80) + (r.by ? " (had been fixed by " + r.by.split("@")[0] + (r.fixNote ? ": " + r.fixNote : "") + ")" : "") });
                     toast("Reopened.");
                 } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
@@ -2031,7 +2034,7 @@
             const was = g.editWas(cur, { [field]: val, [fix ? "text" : "fixNote"]: cur[fix ? "text" : "fixNote"] }, g.PROBLEM_KEYS);
             if (!Object.keys(was).length) return;
             const base = G.problemEdits + "/" + id;
-            const u = { [P.vanReports + "/" + id + "/" + field]: val || null, [base + "/" + push(ref(db, base)).key]: { at: serverTimestamp(), by: by(), was: was } };
+            const u = { [REPORTS + "/" + id + "/" + field]: val || null, [base + "/" + push(ref(db, base)).key]: { at: serverTimestamp(), by: by(), was: was } };
             for (const d of g.editDrops(problemEdits[id])) u[base + "/" + d] = null;
             // the chat has the old wording, so a new wording isn't sent yet
             const unsent = !fix && !!problemSent[id];
@@ -2044,13 +2047,13 @@
         async function addProblem(key) {
             const v = vehicleByKey(key);
             if (!v) return;
-            const text = await ask({ title: "Add a problem", sub: "Vehicle " + v.name + ". It shows with the problems drivers report, until it's marked fixed.", label: "What's wrong", multiline: true,
+            const text = await ask({ title: "Add a problem", sub: "Vehicle " + v.name + (personal ? ". It stays on the vehicle until it's marked fixed." : ". It shows with the problems drivers report, until it's marked fixed."), label: "What's wrong", multiline: true,
                 max: g.MAX.problem, placeholder: "e.g. Passenger headlight out", ok: "Add problem", check: t => { const c = g.cleanProblem({ text: t }); return c.ok ? "" : c.error; } });
             if (text === null) return;
             const c = g.cleanProblem({ text: text });
-            const id = push(ref(db, P.vanReports)).key;
+            const id = push(ref(db, REPORTS)).key;
             try {
-                await write({ [P.vanReports + "/" + id]: { at: serverTimestamp(), ek: emailKey(user.email), name: myName(), vehicleId: ("garage_" + key).slice(0, 128), vehicleName: v.name.slice(0, 60), text: c.value.text, status: "open" } },
+                await write({ [REPORTS + "/" + id]: { at: serverTimestamp(), ek: emailKey(user.email), name: myName(), vehicleId: ("garage_" + key).slice(0, 128), vehicleName: v.name.slice(0, 60), text: c.value.text, status: "open" } },
                     { vkey: key, text: "Problem added: " + short(c.value.text, 100) });
                 toast("Problem added.");
             } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
@@ -2064,7 +2067,7 @@
             return vehicles.map(v => ({ v: v, open: openBy[v.key] || 0, oil: v.inClock && fleet() ? oilDueTag(v) : null, svc: g.serviceDue(stored[v.key], t) }));
         }
         const FILTERS = [["all", "All", () => true], ["problems", "Open problems", x => x.open > 0], ["oil", "Oil due", x => !!(x.oil && x.oil.due)], ["service", "Service due", x => !!x.svc]];
-        const filtersFor = () => fleet() ? FILTERS : FILTERS.filter(x => x[0] === "all" || x[0] === "service");
+        const filtersFor = () => fleet() ? FILTERS : FILTERS.filter(x => x[0] !== "oil");
         function renderVehicles() {
             const q = $("search").value;
             const box = $("vehicleList");
@@ -2248,7 +2251,7 @@
                     (typeof e.cost === "number" ? "<span>" + esc(g.fmtMoney(e.cost)) + "</span>" : "") + "</div>" : "") +
                 (e.note ? '<div class="i-note">' + esc(e.note) + "</div>" : "") + editsHtml("service", "s:" + e.id, e.edits) + "</div>").join("");
 
-            const a = fleet(); // My vehicles have no problems or oil checks from the time clock
+            const a = fleet(); // My vehicles have their own problems, and no oil checks from the time clock
             const oilCard = !a ? "" : '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
                 (v.inClock ? '<div class="oil-rows">' + oilRow(v, def) + "</div>"
                     : '<p class="hint">' + lastCheckText(oilLast[key]) + ". Drivers can't pick this vehicle on the time clock, so they're never asked to check its oil.</p>") +
@@ -2266,12 +2269,12 @@
                 return;
             }
             setHtml(box, '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
-                (!a ? "" : openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
+                (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
                 (v.inClock && a ? oilDueTag(v).tag : personal ? '<span class="tag own">My vehicle</span>' : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
                 '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button>' + (isAdmin() ? '<button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button>' : "") + "</div></div>" +
                 '<div class="v-cols"><div>' +
-                    (!a ? "" : '<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">From drivers\' Vehicle Check, or added here. Fixed ones stay here.</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
+                    ('<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">' + (a ? "From drivers\' Vehicle Check, or added here. Fixed ones stay here." : "Problems with this vehicle. Fixed ones stay here.") + '</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
                         '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>") +
                     '<div class="card"><div class="card-head"><div><h3>Info and parts</h3><p class="hint">Bulbs, fluids, sizes, part numbers. Categories are the same for every vehicle.</p></div></div>' + info + "</div>" +
                 "</div><div>" +
@@ -2291,7 +2294,7 @@
         const openCats = new Set(); // the Parts & info categories opened on a phone ("12|lights")
         function phoneVehicle(o) {
             const { key, v, s, a, openN, probs, groups, rems, svcDue } = o;
-            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["service", "km", "parts", "changes"];
+            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["problems", "service", "km", "parts", "changes"];
             const part = parts.includes(o.part) ? o.part : "";
             const km = g.currentKm(s);
             const title = (t, sub) => '<h1 class="ph-title">' + t + '</h1><p class="ph-sub">' + (sub || esc(v.name)) + "</p>";
@@ -2328,13 +2331,13 @@
             const oil = v.inClock && a ? oilDueTag(v) : null;
             const due = rems.filter(r => r.st.state !== "ok");
             const attn = [];
-            if (a) probs.filter(r => r.status === "open").forEach(r => attn.push(["problems", "red", r.text]));
+            probs.filter(r => r.status === "open").forEach(r => attn.push(["problems", "red", r.text]));
             due.forEach(r => attn.push(["service", r.st.state === "overdue" ? "red" : "orange", r.what + (r.st.state === "overdue" ? " (overdue)" : " (due soon)")]));
             if (oil && oil.due) attn.push(["oil", "red", "Oil check due"]);
             return '<div class="ph-vhead"><h1>' + esc(v.name) + "</h1>" + (o.model ? '<div class="v-model">' + esc(o.model) + "</div>" : "") +
                     '<div class="ph-km">' + (km !== null ? esc(g.fmtKm(km)) : "Km not known yet") + "</div></div>" +
                 '<div class="ph-acts">' +
-                    (a ? act("problems", "red", PI.warn, "Problems", openN ? openN + " open" : "Report or fix", openN) : "") +
+                    act("problems", "red", PI.warn, "Problems", openN ? openN + " open" : "Report or fix", openN) +
                     act("service", "", PI.wrench, "Service", svcDue === "overdue" ? "Overdue" : svcDue === "soon" ? "Due soon" : "Log it, see what's due") +
                     act("km", "", PI.gauge, "Update km", km !== null ? esc(g.fmtKm(km)) + " now" : "") +
                     act("parts", "", PI.bulb, "Parts &amp; info", nItems ? nItems + (nItems === 1 ? " thing saved" : " things saved") : "Bulbs, fluids, tires…") +

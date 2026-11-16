@@ -292,6 +292,14 @@ test('My vehicles (garage_personal/{uid}): only that staff member or admin reads
     await assertFails(db.ref(mine).once('value'));
     await assertFails(db.ref(mine + '/vehicles/civic/items/i3').set(item));
   }
+  // their own problems: report, mark fixed, edits, read mark; the same checks as van_reports
+  await assertSucceeds(sam.ref(mine + '/problems/p1').set({ at: 1, ek: 'sam@ec,com', name: 'Sam', vehicleId: 'garage_civic', vehicleName: 'Civic', text: 'Brake light out', status: 'open' }));
+  await assertSucceeds(sam.ref().update({ [mine + '/problems/p1/status']: 'fixed', [mine + '/problems/p1/fixNote']: 'New bulb', [mine + '/problems/p1/by']: 'sam@ec.com', [mine + '/problems/p1/doneAt']: 2 }));
+  await assertSucceeds(sam.ref(mine + '/problem_reads/p1').set({ at: 1, by: 'sam@ec.com' }));
+  await assertSucceeds(sam.ref(mine + '/problem_edits/p1/e1').set({ at: 1, by: 'sam@ec.com', was: { text: 'Light out' } }));
+  await assertFails(sam.ref(mine + '/problems/p2').set({ text: 'No status' }));
+  await assertFails(sam.ref(mine + '/problems/p1/status').set('gone'));
+  await assertFails(pat.ref(mine + '/problems/p2').set({ at: 1, ek: 'x', vehicleId: 'v', text: 'Not mine', status: 'open' }));
   // an admin has their own section too
   await assertSucceeds(admin().ref('garage_personal/' + 'justin@ec.com'.replace(/[^a-z]/g, '') + '/vehicles/truck/name').set('Truck'));
   // an employee who isn't staff can't have one
