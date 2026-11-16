@@ -14,7 +14,8 @@ categories, adding, removing or putting back vehicles, and **Delete for good** s
 **My vehicles:** the toggle at the top of the Vehicles page switches between **Company vehicles** and
 **My vehicles** — each person's own vehicles (parts, service, reminders, km, their own Trash), kept under
 `garage_personal/{uid}`. Only that signed-in person can see or change theirs. Each personal vehicle has
-its own Problems section too (report, mark fixed, reopen, edit); there are no time clock oil checks.
+its own Problems section too (report, mark fixed, reopen, edit), and an **Oil checks** card that logs
+the days the oil was checked (no schedule; each log is a service entry named *Oil checked*).
 
 - **Info and parts:** headlight and other bulb types, fluids, tire sizes, filters, wipers,
   battery, plate and VIN, notes. Each entry has a name, a type or size, and optionally a part

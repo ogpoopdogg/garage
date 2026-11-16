@@ -164,6 +164,8 @@
         }
         .mode-switch button[aria-pressed="true"] { background: var(--yellow); color: #111; }
         .mode-switch button[data-mode="mine"][aria-pressed="true"] { background: var(--blue); color: #0b1530; }
+        .oil-logbar { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+        .oil-logbar input { max-width: 190px; }
         body.mine .brand-sub { color: var(--blue); }
 
         .tag {
@@ -974,6 +976,7 @@
         const HIST_FIRST = 10, HIST_MORE = 20; // a Changes list shows the newest 10, and Show more adds 20 at a time
         const LOOK_DAYS = 14;     // the Vehicle checks tab shows the last two weeks of oil checks, like the admin Inbox did
         const NEED = ["cats", "garage", "vans", "reports"]; // what has to load before a vehicle can be found (staff: not the reports)
+        const OIL_WHAT = "Oil checked"; // My vehicles: an oil check is a service entry with this name, so the rules stay unchanged
         const SNAP = "garage_saved_copy_v1";                 // localStorage: the last data seen, for opening with no signal
         const MODE_STORE = "garage.mode";                    // localStorage: { email, mine } the side (company or own vehicles) last open
 
@@ -2059,6 +2062,22 @@
             } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
         }
 
+        // My vehicles: log an oil check for a picked day. It's saved as a service entry named "Oil checked",
+        // so the database rules don't change; the Oil checks card lists those entries and Edit can fix or delete one.
+        async function logOilCheck(key) {
+            if (!personal || !vehicleByKey(key)) return;
+            const day = ($("poDay") && $("poDay").value) || "";
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { toast("Pick a day first.", true); return; }
+            if (day > today()) { toast("That day hasn't happened yet.", true); return; }
+            if (g.serviceList((stored[key] || {}).service).some(e => e.what === OIL_WHAT && e.day === day)) { toast("Already logged for " + fmtKey(day) + "."); return; }
+            const path = G.vehicles + "/" + key + "/service/" + push(ref(db, G.vehicles + "/" + key + "/service")).key;
+            try {
+                await write(withName(key, { [path]: { day: day, what: OIL_WHAT, added: serverTimestamp(), addedBy: by(), at: serverTimestamp(), by: by() } }),
+                    { vkey: key, text: "Oil check logged for " + fmtKey(day) });
+                toast("Oil check logged for " + fmtKey(day) + ".");
+            } catch (err) { toast("Couldn't log it: " + errMsg(err), true); }
+        }
+
         // ---------- Vehicles list, filters and search ----------
         function vehicleInfo() {
             const openBy = {};
@@ -2210,7 +2229,10 @@
             const oils = d.oils.filter(o => o.vkey === key);
             const def = cleanOilPlan(oilPlans.def);
             const groups = g.itemGroups(s.items, cats);
-            const svc = g.serviceList(s.service);
+            const svcAll = g.serviceList(s.service);
+            // On My vehicles, logged oil checks are service entries named "Oil checked"; they get their own card
+            const oilLogs = personal ? svcAll.filter(e => e.what === OIL_WHAT) : [];
+            const svc = personal ? svcAll.filter(e => e.what !== OIL_WHAT) : svcAll;
             const rems = g.reminderList(s.reminders, g.currentKm(s), today());
             const svcDue = rems.length && rems[0].st.state !== "ok" ? rems[0].st.state : "";
 
@@ -2245,14 +2267,18 @@
                 (gr.cat.id ? '<button type="button" class="btn sm ghost" data-add-item="' + esc(gr.cat.id) + '">+ Add</button>' : "") + "</div>" +
                 (gr.items.length ? '<div class="items">' + gr.items.map(it => itemHtml(it, gr.cat.id ? gr.cat : null)).join("") + "</div>" : "") + "</div>").join("");
 
-            const svcHtml = svc.map(e => '<div class="item" data-row="svc:' + esc(e.id) + '"><div class="i-main"><span class="i-value">' + esc(e.what) + '</span> <span class="i-label">· ' + esc(fmtKey(e.day)) + "</span></div>" +
+            const svcRow = e => '<div class="item" data-row="svc:' + esc(e.id) + '"><div class="i-main"><span class="i-value">' + esc(e.what) + '</span> <span class="i-label">· ' + esc(fmtKey(e.day)) + "</span></div>" +
                 '<div class="i-tools"><button type="button" class="icon-btn" data-edit-svc="' + esc(e.id) + '" aria-label="Edit ' + esc(e.what) + '">' + ICON.edit + "</button></div>" +
                 (typeof e.km === "number" || typeof e.cost === "number" ? '<div class="i-extra">' + (typeof e.km === "number" ? "<span>" + esc(g.fmtKm(e.km)) + "</span>" : "") +
                     (typeof e.cost === "number" ? "<span>" + esc(g.fmtMoney(e.cost)) + "</span>" : "") + "</div>" : "") +
-                (e.note ? '<div class="i-note">' + esc(e.note) + "</div>" : "") + editsHtml("service", "s:" + e.id, e.edits) + "</div>").join("");
+                (e.note ? '<div class="i-note">' + esc(e.note) + "</div>" : "") + editsHtml("service", "s:" + e.id, e.edits) + "</div>";
+            const svcHtml = svc.map(svcRow).join("");
 
-            const a = fleet(); // My vehicles have their own problems, and no oil checks from the time clock
-            const oilCard = !a ? "" : '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
+            const a = fleet(); // My vehicles have their own problems and oil check log, nothing from the time clock
+            const oilCard = !a ? (!personal ? "" : '<div class="card"><div class="card-head"><div><h3>Oil checks</h3><p class="hint">Log the days you checked the oil.</p></div></div>' +
+                '<div class="oil-logbar"><input class="input" type="date" id="poDay" data-keep value="' + today() + '" max="' + today() + '" aria-label="Day the oil was checked"><button type="button" class="btn sm primary" id="poLog">Log oil check</button></div>' +
+                (oilLogs.length ? '<div class="items">' + oilLogs.map(svcRow).join("") + "</div>" : '<p class="hint" style="margin-top:6px">No oil checks logged yet.</p>') + "</div>")
+                : '<div class="card"><div class="card-head"><div><h3>Oil check</h3></div></div>' +
                 (v.inClock ? '<div class="oil-rows">' + oilRow(v, def) + "</div>"
                     : '<p class="hint">' + lastCheckText(oilLast[key]) + ". Drivers can't pick this vehicle on the time clock, so they're never asked to check its oil.</p>") +
                 '<div class="oil-hist"><div class="label">Last ' + oilDays + " days</div>" +
@@ -2265,7 +2291,7 @@
 
             const model = g.vehicleSummary(s, cats);
             if (phone()) {
-                setHtml(box, phoneVehicle({ key, part, v, s, a, model, openN, probs, groups, itemHtml, svcHtml, rems, svcDue, oilCard }));
+                setHtml(box, phoneVehicle({ key, part, v, s, a, model, openN, probs, groups, itemHtml, svcHtml, rems, svcDue, oilCard, oilLogDay: oilLogs.length ? oilLogs[0].day : null }));
                 return;
             }
             setHtml(box, '<div class="v-head"><div><h1>' + esc(v.name) + "</h1>" + (model ? '<div class="v-model">' + esc(model) + "</div>" : "") + '<div class="tags" style="margin-top:8px">' +
@@ -2294,7 +2320,7 @@
         const openCats = new Set(); // the Parts & info categories opened on a phone ("12|lights")
         function phoneVehicle(o) {
             const { key, v, s, a, openN, probs, groups, rems, svcDue } = o;
-            const parts = a ? ["problems", "service", "km", "parts", "oil", "changes"] : ["problems", "service", "km", "parts", "changes"];
+            const parts = ["problems", "service", "km", "parts", "oil", "changes"];
             const part = parts.includes(o.part) ? o.part : "";
             const km = g.currentKm(s);
             const title = (t, sub) => '<h1 class="ph-title">' + t + '</h1><p class="ph-sub">' + (sub || esc(v.name)) + "</p>";
@@ -2341,7 +2367,8 @@
                     act("service", "", PI.wrench, "Service", svcDue === "overdue" ? "Overdue" : svcDue === "soon" ? "Due soon" : "Log it, see what's due") +
                     act("km", "", PI.gauge, "Update km", km !== null ? esc(g.fmtKm(km)) + " now" : "") +
                     act("parts", "", PI.bulb, "Parts &amp; info", nItems ? nItems + (nItems === 1 ? " thing saved" : " things saved") : "Bulbs, fluids, tires…") +
-                    (a ? act("oil", "", PI.drop, "Oil checks", oil ? oil.next === null ? "Off" : oil.next === "shift" ? "Every shift" : oil.due ? "Due" : "Next " + esc(fmtKey(oil.next)) : "") : "") +
+                    (a ? act("oil", "", PI.drop, "Oil checks", oil ? oil.next === null ? "Off" : oil.next === "shift" ? "Every shift" : oil.due ? "Due" : "Next " + esc(fmtKey(oil.next)) : "")
+                        : act("oil", "", PI.drop, "Oil checks", o.oilLogDay ? "Last " + esc(fmtKey(o.oilLogDay)) : "Log that you checked")) +
                     act("#askAi", "blue", PI.spark, "Ask AI", "About this vehicle") +
                 "</div>" +
                 (attn.length ? '<div class="ph-label">Needs attention</div><div class="ph-rows" style="margin-top:0">' +
@@ -2648,6 +2675,7 @@
             const sec = e.target.closest("[data-sec]");
             if (sec) { go("v:" + key + "/" + sec.dataset.sec, true); return; }
             if (e.target.closest("#phKmSave")) { phoneKm(key); return; }
+            if (e.target.closest("#poLog")) { logOilCheck(key); return; }
             const row = phone() && !e.target.closest("button, a, summary, input, textarea, select") ? e.target.closest("[data-row]") : null;
             if (row) {
                 const r = row.dataset.row, i = r.indexOf(":"), kind = r.slice(0, i), id = r.slice(i + 1);
