@@ -61,6 +61,14 @@ the days the oil was checked (no schedule; each log is a service entry named *Oi
 - **Changes:** each vehicle lists who changed what in Garage (the newest 10, and **Show more** adds 20
   at a time; an entry's earlier versions work the same way). Changes to the categories and to the
   schedule for all vehicles show on the Oil schedule and Categories tabs.
+- **Change log:** its own tab (and a row on the phone's home screen) listing every change anyone makes in
+  Garage on the company vehicles, newest first: who, what, when, which vehicle, and for an edit what it said
+  before and after. Buttons filter by kind of change (Vehicles, Parts & info, Service log, Service due,
+  Problems, Oil checks, Categories, Trash, Other), with a choice of person and vehicle and a search box.
+  It shows the newest 300 (**Show older changes** adds 300). Nobody can change or delete a line, not even
+  the admins: the database rules only let a new one be added. Changes from before the change log started
+  are taken from the vehicles' Changes lists (they have no before and after). My vehicles are private and
+  aren't in it.
 - **Trash:** deleted entries, service, reminders and removed vehicles stay in **Trash** for 30
   days, where **Put back** restores them.
 - **Search and filters:** search finds an entry on every vehicle, for example `H11` or `wiper`;
@@ -118,6 +126,7 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 | `garage/trash/{id}` | `{ at, by, kind, vkey, vname, id, data }`, deleted after 30 days | Garage |
 | `garage/problem_edits/{reportId}/{editId}` | `{ at, by, was: { text, fixNote } }`: each edit of a problem in `timeclock/van_reports`; the newest 20 | Garage |
 | `garage/history/{key}/{id}` | `{ at, by, text }` (`_all`: changes for every vehicle) | Garage |
+| `garage/changelog/{id}` | `{ at, by, cat, vkey, vname, text, before, after }`: the Change log tab; can only be added to | Garage |
 | `garage/problem_reads/{reportId}` | `{ at, by }`: a problem marked as read | Garage |
 | `garage/problem_cleared/{reportId}` | `{ at, by }`: a fixed problem cleared from the Vehicle checks tab (the rules refuse an open one) | Garage |
 | `garage/oil_cleared/{ek}/{shiftId}` | `{ at, by }`: an oil check cleared from the Vehicle checks tab | Garage |
@@ -141,7 +150,8 @@ It uses the same Firebase Realtime Database (`eandccourier-36fcc`):
 2. **Add the database rules.** Firebase console → **Realtime Database** → **Rules**: add the
    `garage` block from `database.rules.json` next to the `timeclock` block. Don't replace
    the whole file, or you'll remove the rules the time clock and your other apps rely on.
-   The three admins can read and change all of `garage/`; staff (`staff/{uid}` true) can read the categories,
+   The three admins can read and change all of `garage/` except the Change log, where they (and staff) can
+   only add lines, never change or delete one (`at` must be the server's time and `by` the signed-in email); staff (`staff/{uid}` true) can read the categories,
    change the vehicle records (`name`, `items`, `service`, `reminders`, `odo`), add to the Changes lists and
    use the Trash for entries. Staff also need to read `timeclock/vans` (the van list), which is in the
    `timeclock` block: its `.read` lets employees **or** staff read it. The time clock's rules already let

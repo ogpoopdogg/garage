@@ -22,6 +22,9 @@
 //       odo                                        { km, day, at, by }  the last km reading someone entered
 //   garage/trash/{id}                            { at, by, kind, vkey, vname, id, data }  deleted things, kept 30 days
 //   garage/history/{vkey}/{id}                   { at, by, text }  what changed on each vehicle ("_all": all vehicles)
+//   garage/changelog/{id}                        { at, by, cat, vkey, vname, text, before, after }  every change anyone makes
+//                                                in Garage (the Change log tab); the rules only let a new one be added,
+//                                                never changed or deleted. My vehicles are private and aren't in it.
 //   garage/problem_reads/{reportId}              { at, by }  a problem marked as read: it no longer counts on the tab
 //   garage/problem_sent/{reportId}               { at, by }  a problem sent to the group chat (Send to chat)
 //   garage/problem_cleared/{reportId}            { at, by }  a fixed problem taken off the Vehicle checks tab
@@ -872,4 +875,73 @@ export function carryMarks(old, value) {
         if (Object.keys(kept).length) value[m] = kept; else delete value[m];
     }
     return value;
+}
+
+// ---------- Change log (the Change log tab) ----------
+// The kinds of change the Change log can filter by, in the order its buttons show
+export const CHANGE_CATS = [
+    ["vehicles", "Vehicles"], ["parts", "Parts & info"], ["service", "Service log"], ["reminders", "Service due"],
+    ["problems", "Problems"], ["oil", "Oil checks"], ["categories", "Categories"], ["trash", "Trash"], ["other", "Other"]
+];
+export const CHANGE_CAT_IDS = CHANGE_CATS.map(c => c[0]);
+export const CHANGE_MAX = { text: 300, side: 300 };   // database.rules.json checks the same numbers
+// The kind of change a Changes line is about, from how its text starts (every line Garage writes starts one of these ways)
+export function changeCategory(text) {
+    const t = String(text || "").trim();
+    if (/^(Vehicle (added|removed)|Km updated)/i.test(t)) return "vehicles";
+    if (/^((Logged|Changed|Deleted) service|Oil check logged)/i.test(t)) return "service";
+    if (/^(Reminder done|(Added|Changed|Deleted) reminder)/i.test(t)) return "reminders";
+    if (/^Categor(y|ies) /i.test(t)) return "categories";
+    if (/^(Deleted for good from the Trash|Put back from the Trash|Emptied .*Trash)/i.test(t)) return "trash";
+    if (/^(Problem|Fix note edited|Fixed problem|Sent to chat)/i.test(t)) return "problems";
+    if (/^(Oil check|Asked for an oil check|Missed oil check|Cleared .*oil check|Brought back .*oil check)/i.test(t)) return "oil";
+    if (/^(Added|Changed|Deleted|AI filled in|Confirmed) /i.test(t)) return "parts";
+    return "other";
+}
+const cut = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "\u2026" : t; };
+// The change log entry for one change (h: { vkey, text, cat, before, after }), without at/by (garage.html adds those).
+// vkey "_all" (or none) is a change that isn't about one vehicle.
+export function changeEntry(h, vname) {
+    const e = { cat: CHANGE_CAT_IDS.includes(h.cat) ? h.cat : changeCategory(h.text), text: cut(h.text, CHANGE_MAX.text) || "Changed" };
+    const vkey = h.vkey && h.vkey !== HISTORY_ALL && /^[a-z0-9]{1,60}$/.test(h.vkey) ? h.vkey : "";
+    if (vkey) { e.vkey = vkey; e.vname = cut(vname || vkey, 60); }
+    const b = cut(h.before, CHANGE_MAX.side), a = cut(h.after, CHANGE_MAX.side);
+    if (b || a) { if (b) e.before = b; if (a) e.after = a; }
+    return e;
+}
+// What changed, as two short texts: { before: "Type: H11 · Note: both", after: "Type: H7 · Note: (empty)" }.
+// rows: [[field name, old text, new text]]; rows that say the same are left out. {} when nothing changed.
+export function beforeAfter(rows) {
+    const diff = rows.filter(r => String(r[1] ?? "") !== String(r[2] ?? ""));
+    if (!diff.length) return {};
+    const side = i => cut(diff.map(r => r[0] + ": " + (String(r[i] ?? "") || "(empty)")).join(" \u00b7 "), CHANGE_MAX.side);
+    return { before: side(1), after: side(2) };
+}
+// Newest first: [{ id, at, by, cat, vkey, vname, text, before, after, old }] from garage/changelog plus, for the time
+// before the change log started (from: the first change log entry's time, or null when there's none yet), the older
+// lines from garage/history (old: true; their kind is worked out from the text).
+export function changeList(log, history, from) {
+    const out = [];
+    for (const [id, e] of Object.entries(log || {})) if (e && e.text) out.push(Object.assign({ id: id }, e, { cat: CHANGE_CAT_IDS.includes(e.cat) ? e.cat : "other" }));
+    for (const [vkey, lines] of Object.entries(history || {})) {
+        for (const [id, h] of Object.entries(lines || {})) {
+            if (!h || !h.text || (typeof from === "number" && !(typeof h.at === "number" && h.at < from))) continue;
+            out.push({ id: "h_" + vkey + "_" + id, at: h.at, by: h.by || "", cat: changeCategory(h.text), vkey: vkey === HISTORY_ALL ? "" : vkey, text: h.text, old: true });
+        }
+    }
+    const t = e => typeof e.at === "number" ? e.at : Infinity; // one still being saved counts as the newest
+    return out.sort((a, b) => t(b) - t(a) || (a.id < b.id ? 1 : -1));
+}
+// The entries a filter shows: f = { cat, by, vkey, q } (each optional; q: words that must all be found)
+export function changeFilter(list, f) {
+    f = f || {};
+    const words = String(f.q || "").toLowerCase().split(/\s+/).filter(Boolean);
+    return list.filter(e => (!f.cat || e.cat === f.cat) && (!f.by || (e.by || "").toLowerCase() === f.by.toLowerCase()) && (!f.vkey || e.vkey === f.vkey) &&
+        (!words.length || (h => words.every(w => h.includes(w)))([e.text, e.vname, e.vkey, e.by, e.before, e.after].join(" ").toLowerCase())));
+}
+// How many entries of each kind (for the numbers on the filter buttons)
+export function changeCounts(list) {
+    const n = {};
+    for (const e of list) n[e.cat] = (n[e.cat] || 0) + 1;
+    return n;
 }
