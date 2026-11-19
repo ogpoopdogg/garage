@@ -11,6 +11,10 @@ search, **Ask AI** and the export, and they can put entries, service and reminde
 time clock's Vehicle checks and oil checks (which come from every driver's shifts), the oil schedule, the
 categories, adding, removing or putting back vehicles, and **Delete for good** stay with the admins.
 
+**Removing a company vehicle:** only `justin@ec.com` (the button is hidden for everyone else, and the database rules
+refuse it). Admins and staff can still put a removed vehicle back from the Trash. On My vehicles each person
+removes their own.
+
 **My vehicles:** the toggle at the top of the Vehicles page switches between **Company vehicles** and
 **My vehicles** — each person's own vehicles (parts, service, reminders, km, their own Trash), kept under
 `garage_personal/{uid}`. Only that signed-in person can see or change theirs. Each personal vehicle has

@@ -1023,6 +1023,9 @@
         const isAdmin = () => role === "admin" || role === "staff";
         // Oil checks (mark as read, clear, bring back) and the oil check schedule: staff see them, only the admins change them
         const isBoss = () => role === "admin";
+        // Removing a company vehicle: only Justin (Justin, 2026-11-19). On My vehicles, each person removes their own.
+        const VEHICLE_REMOVER = "justin@ec.com";
+        const canRemoveVehicle = () => personal ? isAdmin() : !!user && String(user.email || "").toLowerCase() === VEHICLE_REMOVER;
         // The company's vehicles: problems, oil checks, the time clock's vans. Not on My vehicles.
         const fleet = () => isAdmin() && !personal;
         const liveReady = () => (personal ? ["cats", "garage", "reports"] : NEED).every(k => loaded[k] || (k === "reports" && !fleet() && !personal));
@@ -1094,7 +1097,15 @@
                 if (!personal && typeof g.changeEntry === "function") u[G.changelog + "/" + push(ref(db, G.changelog)).key] =
                     Object.assign(g.changeEntry(h, h.vkey && h.vkey !== g.HISTORY_ALL ? vName(h.vkey) : ""), { at: serverTimestamp(), by: by() });
             }
-            await update(ref(db), u);
+            try { await update(ref(db), u); }
+            catch (err) {
+                // Database rules from before the Change log refuse its lines: the change itself is still saved, without them
+                const logKeys = Object.keys(u).filter(k => k.startsWith(G.changelog + "/"));
+                if (!logKeys.length || !/permission/i.test(String(err && (err.code + " " + err.message)))) throw err;
+                console.warn("The Change log was refused (are the newest database rules published?). Saved without it.", err);
+                logKeys.forEach(k => delete u[k]);
+                await update(ref(db), u);
+            }
         }
         // What an edit changed, for the Change log: { before, after } with only the fields that are different
         const fieldVal = (e, k) => { const v = e ? (g.isExtraKey(k) ? (e.extra || {})[k] : e[k]) : undefined; return v === undefined || v === null ? "" : v; };
@@ -2434,7 +2445,7 @@
                 (openN ? '<span class="tag warn">' + openN + (openN === 1 ? " open problem" : " open problems") + "</span>" : '<span class="tag live">No open problems</span>') +
                 (svcDue === "overdue" ? '<span class="tag warn">Service overdue</span>' : svcDue === "soon" ? '<span class="tag soon">Service due soon</span>' : "") +
                 (v.inClock && a ? oilDueTag(v).tag : personal ? '<span class="tag own">My vehicle</span>' : v.listed ? '<span class="tag own">Added in Garage</span>' : '<span class="tag">Not in the van list</span>') + "</div></div>" +
-                '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button>' + (isAdmin() ? '<button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button>' : "") + "</div></div>" +
+                '<div class="panel-actions"><button type="button" class="btn sm primary" id="askAi">Ask AI</button><button type="button" class="btn sm" id="odoBtn">Update km</button>' + (canRemoveVehicle() ? '<button type="button" class="btn sm danger" id="removeVehicle">Remove vehicle</button>' : "") + "</div></div>" +
                 '<div class="v-cols"><div>' +
                     ('<div class="card"><div class="card-head"><div><h3>Vehicle problems' + (openN ? ' <span class="tab-count">' + openN + "</span>" : "") + '</h3><p class="hint">' + (a ? "From drivers\' Vehicle Check, or added here. Fixed ones stay here." : "Problems with this vehicle. Fixed ones stay here.") + '</p></div><button type="button" class="btn sm primary" id="addProblem">+ Add problem</button></div>' +
                         '<div class="list">' + (probs.map(r => problemHtml(r, false)).join("") || empty("No problems reported for this vehicle.")) + "</div></div>") +
@@ -2510,7 +2521,7 @@
                 (attn.length ? '<div class="ph-label">Needs attention</div><div class="ph-rows" style="margin-top:0">' +
                     attn.map(([sec, st, t]) => '<button type="button" class="ph-row st-' + st + '" data-sec="' + sec + '"><span class="ph-dot"></span><span class="r-text">' + esc(short(t, 90)) + "</span>" + PI.go + "</button>").join("") + "</div>" : "") +
                 '<div class="ph-label">More</div><div class="ph-rows" style="margin-top:0">' + phRow('data-sec="changes"', PI.clock, "Changes", "Who changed what") +
-                    (isAdmin() ? phRow('id="removeVehicle"', PI.trash, "Remove vehicle", "It goes to the Trash for 30 days", "danger") : "") + "</div>";
+                    (canRemoveVehicle() ? phRow('id="removeVehicle"', PI.trash, "Remove vehicle", "It goes to the Trash for 30 days", "danger") : "") + "</div>";
         }
         $("vehicleView").addEventListener("toggle", e => {
             const d = e.target.closest && e.target.closest("[data-cat-open]");
@@ -2770,7 +2781,7 @@
         // Removing a vehicle hides it in Garage and puts what was saved for it in the Trash. It stays on the time clock.
         async function removeVehicle(key) {
             const v = vehicleByKey(key);
-            if (!v) return;
+            if (!v || !canRemoveVehicle()) return;
             const s = stored[key] || {};
             const n = Object.keys(s.items || {}).length + Object.keys(s.service || {}).length + Object.keys(s.reminders || {}).length;
             const ok = await ask({ title: "Remove " + v.name + "?", danger: true, ok: "Remove",
@@ -2824,7 +2835,7 @@
             else if (e.target.closest("#addProblem")) addProblem(key);
             else if (e.target.closest("#askAi")) openAi(key);
             else if (e.target.closest("#odoBtn")) updateKm(key);
-            else if (e.target.closest("#removeVehicle") && isAdmin()) removeVehicle(key);
+            else if (e.target.closest("#removeVehicle") && canRemoveVehicle()) removeVehicle(key);
         });
 
         $("vehicleView").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "phKm") { e.preventDefault(); const k = currentKey(); if (k) phoneKm(k); } });
