@@ -458,3 +458,67 @@ test('ask AI: values an AI filled in say they aren\'t checked yet', () => {
   const t = aiText({ question: 'q', name: '3', s: s, cats: fillCats(), problems: [], oils: [], today: '2026-11-09', day: () => '', pick: new Set(['c:lights']) });
   assert.match(t, /- Headlight: H11; Part number: 9008 \(filled in by AI, not checked yet\)/);
 });
+
+// ---------- Change log ----------
+import { CHANGE_CATS, changeCategory, changeEntry, beforeAfter, changeList, changeFilter, changeCounts, HISTORY_ALL } from '../garage-core.js';
+
+test('change log: every kind of line Garage writes gets its own kind of change', () => {
+  const cases = {
+    vehicles: ['Vehicle added in Garage', 'Vehicle removed from Garage', 'Km updated to 182,500 km'],
+    parts: ['Added Lights: Headlight H11', 'Changed Fluids: Oil 5W-30', 'Deleted Wipers: Front 22"', 'AI filled in Lights: Headlight (Type or size)', 'Confirmed Lights · Headlight: H11'],
+    service: ['Logged service: Oil change, 18 Oct', 'Changed service: Brakes, 2 Nov', 'Deleted service: Tires, 1 Oct', 'Oil check logged for 3 Nov'],
+    reminders: ['Added reminder: Oil change', 'Changed reminder: Oil change', 'Deleted reminder: Brakes', 'Reminder done: Oil change. Next at 190,000 km', 'Reminder done and finished: Tires'],
+    problems: ['Problem added: Headlight out', 'Problem fixed: Headlight out (new bulb)', 'Problem reopened: Headlight out', 'Problem edited: x (was: y)', 'Fix note edited: x (was: y)',
+      'Problem sent to the chat: x', 'Sent to chat check taken off: x', 'Fixed problem cleared from Vehicle checks: x', 'Problem brought back to Vehicle checks: x', 'Problem marked as read: x'],
+    oil: ['Oil check: every shift', 'Oil check for all vehicles: once a day', 'Asked for an oil check at the next shift', 'Missed oil check read (Sam, 3 Nov)',
+      'Cleared 3 oil checks from Vehicle checks (Sam 3 Nov)', 'Cleared oil check from Vehicle checks (Sam, 3 Nov)', 'Brought back oil check to Vehicle checks (Sam, 3 Nov)'],
+    categories: ['Category Brakes added', 'Category Lights renamed to Bulbs', 'Category Brakes deleted', 'Category Vehicle added, with Plate', 'Category Lights fields: Name, Type', 'Categories reordered: Lights moved up'],
+    trash: ['Deleted for good from the Trash: Brakes', 'Put back from the Trash: Lights: Headlight', 'Emptied 2 things from the Trash after 30 days (done by itself)']
+  };
+  for (const [cat, texts] of Object.entries(cases)) for (const t of texts) assert.strictEqual(changeCategory(t), cat, t);
+  assert.strictEqual(changeCategory('Something new'), 'other');
+  assert.deepStrictEqual(CHANGE_CATS.map(c => c[0]), ['vehicles', 'parts', 'service', 'reminders', 'problems', 'oil', 'categories', 'trash', 'other']);
+});
+
+test('change log: an entry has the kind, the vehicle (not for all vehicles) and before/after only when given', () => {
+  assert.deepStrictEqual(changeEntry({ vkey: '12', text: 'Km updated to 1 km', before: 'Km: 0 km', after: 'Km: 1 km' }, 'Van 12'),
+    { cat: 'vehicles', text: 'Km updated to 1 km', vkey: '12', vname: 'Van 12', before: 'Km: 0 km', after: 'Km: 1 km' });
+  assert.deepStrictEqual(changeEntry({ vkey: HISTORY_ALL, text: 'Category Brakes added' }), { cat: 'categories', text: 'Category Brakes added' });
+  assert.deepStrictEqual(changeEntry({ text: 'Cleared 2 oil checks', cat: 'oil' }), { cat: 'oil', text: 'Cleared 2 oil checks' });
+  assert.strictEqual(changeEntry({ text: 'x'.repeat(400) }).text.length, 300);
+  assert.strictEqual(changeEntry({ vkey: 'Van 12', text: 'x' }).vkey, undefined); // not a key: no vehicle
+  assert.strictEqual(changeEntry({ text: 'x', cat: 'nope' }).cat, 'other');
+});
+
+test('change log: before and after list only the fields that changed', () => {
+  assert.deepStrictEqual(beforeAfter([['Type', 'H11', 'H7'], ['Part', '9008', '9008'], ['Note', '', 'both sides']]),
+    { before: 'Type: H11 · Note: (empty)', after: 'Type: H7 · Note: both sides' });
+  assert.deepStrictEqual(beforeAfter([['Type', 'H11', 'H11']]), {});
+  assert.ok(beforeAfter([['Note', 'a', 'b'.repeat(400)]]).after.length <= 300);
+});
+
+test('change log: the log plus older Changes lines from before it started, newest first; filters and counts', () => {
+  const log = {
+    c1: { at: 100, by: 'justin@ec.com', cat: 'parts', vkey: '12', vname: 'Van 12', text: 'Added Lights: Headlight H11' },
+    c2: { at: 200, by: 'desirae@ec.com', cat: 'oil', text: 'Cleared 2 oil checks from Vehicle checks' }
+  };
+  const history = {
+    '12': { h1: { at: 50, by: 'celeste@ec.com', text: 'Logged service: Oil change, 1 Oct' }, h2: { at: 100, by: 'justin@ec.com', text: 'Added Lights: Headlight H11' } },
+    _all: { h3: { at: 60, by: 'justin@ec.com', text: 'Category Brakes added' } }
+  };
+  const list = changeList(log, history, 100);
+  assert.deepStrictEqual(list.map(e => [e.text, e.cat, e.vkey || '', !!e.old]), [
+    ['Cleared 2 oil checks from Vehicle checks', 'oil', '', false],
+    ['Added Lights: Headlight H11', 'parts', '12', false],
+    ['Category Brakes added', 'categories', '', true],
+    ['Logged service: Oil change, 1 Oct', 'service', '12', true]
+  ]);
+  // no change log yet: every Changes line; no history: only the log
+  assert.strictEqual(changeList({}, history, null).length, 3);
+  assert.strictEqual(changeList(log, null, 100).length, 2);
+  assert.deepStrictEqual(changeFilter(list, { cat: 'parts' }).map(e => e.text), ['Added Lights: Headlight H11']);
+  assert.deepStrictEqual(changeFilter(list, { by: 'JUSTIN@ec.com' }).length, 2);
+  assert.deepStrictEqual(changeFilter(list, { vkey: '12' }).length, 2);
+  assert.deepStrictEqual(changeFilter(list, { q: 'oil vehicle' }).map(e => e.cat), ['oil']);
+  assert.deepStrictEqual(changeCounts(list), { oil: 1, parts: 1, categories: 1, service: 1 });
+});

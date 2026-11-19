@@ -305,3 +305,59 @@ test('My vehicles (garage_personal/{uid}): only that staff member or admin reads
   // an employee who isn't staff can't have one
   await assertFails(as('matt@ec.com').ref('garage_personal/' + 'matt@ec.com'.replace(/[^a-z]/g, '') + '/vehicles/car/name').set('Car'));
 });
+
+// The Change log tab (garage/changelog): admins and staff add a line with each change; nobody can change or delete
+// one, not even the admins. A line says who wrote it (their own sign-in email) and when (the server's time).
+test('change log: admins and staff only add lines; a line can\'t be changed or deleted, by anyone', async () => {
+  const line = (email, extra) => Object.assign({ at: { '.sv': 'timestamp' }, by: email, cat: 'parts', vkey: '12', vname: 'Van 12', text: 'Added Lights: Headlight H11' }, extra || {});
+  const db = admin(), sam = await staff('sam@ec.com');
+  await assertSucceeds(db.ref('garage/changelog/c1').set(line('justin@ec.com', { before: 'Type: H7', after: 'Type: H11' })));
+  await assertSucceeds(sam.ref('garage/changelog/c2').set(line('sam@ec.com', { cat: 'oil', vkey: null, vname: null, text: 'Cleared 2 oil checks' })));
+  // with the change itself, in one write
+  await assertSucceeds(db.ref().update({ 'garage/vehicles/12/items/i9': item, 'garage/history/12/h9': { at: 1, by: 'justin@ec.com', text: 'Added Lights: Headlight H11' }, 'garage/changelog/c3': line('justin@ec.com') }));
+  await assertSucceeds(db.ref('garage/changelog').once('value'));
+  await assertSucceeds(sam.ref('garage/changelog').once('value'));
+  // never changed or deleted: not a line, not one field, not the whole log, not with the rest of the garage
+  for (const who of [db, sam, as('Desirae@ec.com')]) {
+    await assertFails(who.ref('garage/changelog/c1').remove());
+    await assertFails(who.ref('garage/changelog/c1/text').set('Something else'));
+    await assertFails(who.ref('garage/changelog/c1').set(line('justin@ec.com', { text: 'Rewritten' })));
+    await assertFails(who.ref('garage/changelog').remove());
+    await assertFails(who.ref('garage/changelog').set({}));
+    await assertFails(who.ref('garage').remove());
+  }
+  // who and when can't be made up
+  await assertFails(db.ref('garage/changelog/c4').set(line('desirae@ec.com')));
+  await assertFails(sam.ref('garage/changelog/c4').set(line('justin@ec.com')));
+  await assertFails(db.ref('garage/changelog/c4').set(line('justin@ec.com', { at: 1 })));
+  // only what Garage saves
+  await assertFails(db.ref('garage/changelog/c4').set(line('justin@ec.com', { cat: 'hacks' })));
+  await assertFails(db.ref('garage/changelog/c4').set(line('justin@ec.com', { text: '' })));
+  await assertFails(db.ref('garage/changelog/c4').set(line('justin@ec.com', { text: 'x'.repeat(301) })));
+  await assertFails(db.ref('garage/changelog/c4').set(line('justin@ec.com', { before: 'x'.repeat(301) })));
+  await assertFails(db.ref('garage/changelog/c4').set(line('justin@ec.com', { vkey: 'Van 12' })));
+  await assertFails(db.ref('garage/changelog/c4').set(line('justin@ec.com', { extra: 1 })));
+  await assertFails(db.ref('garage/changelog/c4').set({ at: { '.sv': 'timestamp' }, by: 'justin@ec.com', text: 'No kind' }));
+  // nobody else
+  await assertFails(as('matt@ec.com').ref('garage/changelog/c5').set(line('matt@ec.com')));
+  await assertFails(as('matt@ec.com').ref('garage/changelog').once('value'));
+  await assertFails(env.unauthenticatedContext().database().ref('garage/changelog').once('value'));
+});
+
+test('the admins still change everything else in Garage, now that their access is given section by section', async () => {
+  const db = admin();
+  await assertSucceeds(db.ref().update({
+    'garage/categories/-Nnew': { name: 'Brakes', order: 9 },
+    'garage/vehicles/12/name': 'Van 12', 'garage/vehicles/12/items/i1': item,
+    'garage/trash/t1': { at: 1, by: 'justin@ec.com', kind: 'vehicle', vkey: '12', vname: 'Van 12', id: '', data: { name: 'Van 12' } },
+    'garage/problem_reads/r1': { at: 1, by: 'justin@ec.com' }, 'garage/problem_sent/r1': { at: 1, by: 'justin@ec.com' },
+    'garage/oil_cleared/sam@ec,com/s1': { at: 1, by: 'justin@ec.com' }, 'garage/oil_shown/sam@ec,com/s1': { at: 1, by: 'justin@ec.com' }
+  }));
+  await assertSucceeds(db.ref('garage/trash/t1').remove());
+  await assertSucceeds(db.ref('garage/vehicles/12/items/i1').remove());
+  await assertSucceeds(db.ref('garage/oil_cleared/sam@ec,com/s1').remove());
+  await assertSucceeds(db.ref('garage/categories/-Nnew').remove());
+  // staff still can't touch the oil check marks
+  const sam = await staff('sam@ec.com');
+  await assertFails(sam.ref('garage/oil_cleared/sam@ec,com/s2').set({ at: 1, by: 'sam@ec.com' }));
+});

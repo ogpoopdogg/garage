@@ -221,6 +221,13 @@
         .chip[aria-pressed="true"] { background: rgba(255, 204, 0, 0.14); color: var(--yellow); box-shadow: inset 0 0 0 1px rgba(255, 204, 0, 0.45); }
         .chip:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
         .chip .n { color: inherit; opacity: 0.8; }
+        .log-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+        .log-tools .search { flex: 1 1 240px; margin: 0; }
+        .log-tools .select { flex: 1 1 140px; max-width: 220px; min-width: 0; }
+        .log-entry .e-what { font-family: inherit; font-weight: 600; font-size: 1rem; overflow-wrap: anywhere; }
+        .log-entry .e-cat { color: var(--yellow); font-weight: 600; }
+        .log-ba { margin-top: 6px; display: grid; gap: 2px; font-size: 0.88rem; overflow-wrap: anywhere; }
+        .log-ba b { color: var(--dim); font-weight: 600; margin-right: 4px; }
         .search { position: relative; margin-bottom: 18px; }
         .search svg { position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
         .search .input { width: 100%; height: 48px; padding-left: 42px; font-size: 1.05rem; }
@@ -654,6 +661,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
                 <span class="tab-text">Trash</span>
             </button>
+            <button type="button" class="tab" role="tab" data-tab="changes" aria-selected="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <span class="tab-text">Change log</span>
+            </button>
         </nav>
 
         <!-- Vehicles -->
@@ -736,6 +747,21 @@
                 <div><h1 class="panel-title">Trash</h1><p class="panel-sub">Deleted entries, service, reminders and removed vehicles. Put them back within 30 days.</p></div>
             </div>
             <div class="list" id="trashList"></div>
+        </section>
+
+        <!-- Change log: every change anyone makes in Garage (company vehicles), with a filter for each kind of change -->
+        <section class="panel" id="panel-changes" role="tabpanel" hidden>
+            <div class="panel-head">
+                <div><h1 class="panel-title">Change log</h1><p class="panel-sub">Every change anyone makes in Garage: who, what and when. Nothing here can be changed or deleted.</p></div>
+            </div>
+            <div class="chips" id="logChips" role="group" aria-label="Kind of change"></div>
+            <div class="log-tools">
+                <div class="search sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="input" id="logSearch" type="search" placeholder="Search changes, e.g. H11 or oil" autocomplete="off" aria-label="Search the change log"></div>
+                <select class="select" id="logWho" aria-label="Who made the change"></select>
+                <select class="select" id="logVehicle" aria-label="Which vehicle"></select>
+            </div>
+            <p class="look-note" id="logNote" hidden></p>
+            <div class="list" id="logList"></div>
         </section>
 
         <!-- One vehicle -->
@@ -944,7 +970,7 @@
         const reportFailedSignIn = typeof core.reportFailedSignIn === "function" ? core.reportFailedSignIn : noReport;
         const reportRefusedSignIn = typeof core.reportRefusedSignIn === "function" ? core.reportRefusedSignIn : noReport;
         const { onAuthStateChanged, signInWithEmailAndPassword, signOut } = fa;
-        const { ref, onValue, get, update, push, query, orderByChild, startAt, endAt, limitToLast, serverTimestamp } = fd;
+        const { ref, onValue, get, update, push, query, orderByChild, orderByKey, startAt, endAt, limitToFirst, limitToLast, serverTimestamp } = fd;
 
         const $ = id => document.getElementById(id);
         // Redraws only what changed: a part of the page is rebuilt only when its HTML is different from last time,
@@ -967,7 +993,8 @@
         if (phoneMq.addEventListener) phoneMq.addEventListener("change", () => { applyPhone(); render(); });
         // vehicles, trash and history point at garage_personal/{uid}/... while someone looks at My vehicles (see setMode)
         const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history", problemEdits: "garage/problem_edits",
-            problemReads: "garage/problem_reads", problemSent: "garage/problem_sent", problemCleared: "garage/problem_cleared", oilCleared: "garage/oil_cleared", oilShown: "garage/oil_shown" };
+            problemReads: "garage/problem_reads", problemSent: "garage/problem_sent", problemCleared: "garage/problem_cleared", oilCleared: "garage/oil_cleared", oilShown: "garage/oil_shown",
+            changelog: "garage/changelog" }; // the Change log is the company garage only (My vehicles are private), so it never moves
         // Garage lists the vehicles in RouteWatcher (GPS), the time clock's vans (Admin → Vehicles → Vehicles without GPS)
         // and the ones added here. Everything is still kept by the vehicle's name, never by a GPS unit.
         // false would leave the RouteWatcher vehicles out.
@@ -1051,17 +1078,32 @@
             '<span class="r-text">' + text + (sub ? '<span class="r-sub">' + sub + "</span>" : "") + "</span>" + PI.go + "</button>";
 
         // ---------- Saving ----------
-        // Every change goes through here, with a line for each vehicle's Changes list ({ vkey, text }), in the same
-        // write, so the list never misses a change. With no signal nothing is sent (Firebase would only send it later,
-        // after the page might be closed).
+        // Every change goes through here, with a line for each change ({ vkey, text, cat, before, after, logOnly }) in
+        // the same write, so nothing is ever missed: the line goes on the vehicle's Changes list (vkey; not with logOnly)
+        // and on the Change log tab (garage/changelog, company vehicles only; cat is worked out from the text when it's
+        // left out). With no signal nothing is sent (Firebase would only send it later, after the page might be closed).
         async function write(u, hist) {
             if (offline()) throw { code: "garage/offline" };
             for (const h of [].concat(hist || [])) {
-                if (!h || !h.vkey) continue;
-                const p = G.history + "/" + h.vkey;
-                u[p + "/" + push(ref(db, p)).key] = { at: serverTimestamp(), by: by(), text: short(h.text, g.MAX.history) };
+                if (!h || !h.text) continue;
+                if (h.vkey && !h.logOnly) {
+                    const p = G.history + "/" + h.vkey;
+                    u[p + "/" + push(ref(db, p)).key] = { at: serverTimestamp(), by: by(), text: short(h.text, g.MAX.history) };
+                }
+                // (typeof: a garage-core.js saved on the phone from before the Change log can still be the one loaded once)
+                if (!personal && typeof g.changeEntry === "function") u[G.changelog + "/" + push(ref(db, G.changelog)).key] =
+                    Object.assign(g.changeEntry(h, h.vkey && h.vkey !== g.HISTORY_ALL ? vName(h.vkey) : ""), { at: serverTimestamp(), by: by() });
             }
             await update(ref(db), u);
+        }
+        // What an edit changed, for the Change log: { before, after } with only the fields that are different
+        const fieldVal = (e, k) => { const v = e ? (g.isExtraKey(k) ? (e.extra || {})[k] : e[k]) : undefined; return v === undefined || v === null ? "" : v; };
+        function changeSides(kind, old, next, keys) {
+            if (!old) return {};
+            return g.beforeAfter(g.editKeys(old, next, keys).map(k => {
+                const a = wasText(kind, k, fieldVal(old, k), old), b = wasText(kind, k, fieldVal(next, k), next);
+                return [a[0], a[1], b[1]];
+            }));
         }
         const errMsg = err => err && err.code === "garage/offline" ? "No signal right now, so nothing was saved. Try again when you're back online." : errText(err);
         // Puts something in the Trash (as part of a write): it can be put back for 30 days
@@ -1125,6 +1167,7 @@
             unsubs.forEach(fn => fn()); unsubs = [];
             Object.values(shiftUnsubs).forEach(fn => fn()); shiftUnsubs = {};
             if (histUnsub) histUnsub(); histUnsub = null; histKey = null;
+            stopChanges();
         }
         function clearData() {
             problemReads = {}; problemSent = {}; problemCleared = {}; oilCleared = {}; oilShown = {}; shownShifts = {}; oilRange = null;
@@ -1186,7 +1229,7 @@
         function applyRole() {
             const a = isAdmin();
             const f = fleet();
-            document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"]').forEach(b => { b.hidden = !f; });
+            document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"], .tab[data-tab="changes"]').forEach(b => { b.hidden = !f; });
             $("addVehicleBtn").hidden = !a;
             $("oilClearAll").hidden = !isBoss();
             document.body.classList.toggle("mine", personal);
@@ -1375,6 +1418,85 @@
             render();
         });
 
+        // ---------- Change log tab ----------
+        // Every change anyone makes in Garage (garage/changelog, written with each change by write()), newest first, with a
+        // button for each kind of change and a choice of person and vehicle. The newest 300 are loaded; Show older adds 300.
+        // Changes from before the change log started come from the vehicles' Changes lists (garage/history) once every
+        // change log entry is loaded; those have no before and after.
+        const LOG_FIRST = 300, LOG_MORE = 300;
+        const LOG_CAT = Object.fromEntries(g.CHANGE_CATS);
+        let logOn = false, logUnsub = null, logRaw = null, logErr = null, logShown = LOG_FIRST, logFrom, logOld = null;
+        const logF = { cat: "", by: "", vkey: "", q: "" };
+        function stopChanges() {
+            if (logUnsub) logUnsub();
+            logUnsub = null; logOn = false; logRaw = null; logErr = null; logShown = LOG_FIRST; logFrom = undefined; logOld = null;
+        }
+        function syncChanges() {
+            const want = !!user && view === "changes" && fleet();
+            if (want === logOn) return;
+            if (!want) { stopChanges(); return; }
+            logOn = true;
+            listenChanges();
+            // when the change log started: older lines are taken from the Changes lists
+            get(query(ref(db, G.changelog), orderByKey(), limitToFirst(1))).then(s => {
+                const first = Object.values(s.val() || {})[0];
+                logFrom = first && typeof first.at === "number" ? first.at : null;
+                render();
+            }).catch(err => { logFrom = null; console.warn("Couldn't load the start of the change log", err); render(); });
+            get(ref(db, G.history)).then(s => { logOld = s.val() || {}; render(); })
+                .catch(err => { logOld = {}; console.warn("Couldn't load the older changes", err); render(); });
+        }
+        function listenChanges() {
+            if (logUnsub) logUnsub();
+            logUnsub = onValue(query(ref(db, G.changelog), orderByKey(), limitToLast(logShown + 1)), s => { logRaw = s.val() || {}; logErr = null; render(); },
+                err => { logErr = err; render(); });
+        }
+        const logPerson = email => { const e = employees[emailKey(String(email || ""))]; return e ? displayName(e, email) : String(email || "someone").split("@")[0]; };
+        function logEntryHtml(e) {
+            return '<div class="entry log-entry"><div class="e-top"><span class="e-who"><span class="e-cat">' + esc(LOG_CAT[e.cat] || "Other") + "</span>" +
+                (e.vkey ? " · " + vehicleLink(e.vkey, e.vname || vName(e.vkey)) : "") + '</span><span class="e-when">' + esc(typeof e.at === "number" ? ago(e.at) : "Saving…") + "</span></div>" +
+                '<div class="e-what">' + esc(e.text) + "</div>" +
+                (e.before || e.after ? '<div class="log-ba">' + (e.before ? "<div><b>Before</b>" + esc(e.before) + "</div>" : "") + (e.after ? "<div><b>After</b>" + esc(e.after) + "</div>" : "") + "</div>" : "") +
+                '<div class="e-detail">By ' + esc(logPerson(e.by)) + (e.old ? " · from before the change log started" : "") + "</div></div>";
+        }
+        function renderChanges() {
+            const box = $("logList");
+            if (logErr) {
+                setHtml(box, empty("Couldn't load the change log: " + (/permission/i.test(String(logErr.code + " " + logErr.message)) ?
+                    "the database said no (permission denied). Check that the newest database rules are published in the Firebase console." : esc(errMsg(logErr)))));
+                return;
+            }
+            if (logRaw === null || logOld === null || logFrom === undefined) { setHtml(box, loadingHtml()); return; }
+            // one more than shown is loaded, to know there are older ones; that one isn't shown
+            const keys = Object.keys(logRaw).sort(), more = keys.length > logShown, raw = {};
+            keys.slice(more ? 1 : 0).forEach(k => { raw[k] = logRaw[k]; });
+            const ats = Object.values(raw).map(e => e && e.at).filter(n => typeof n === "number");
+            const from = typeof logFrom === "number" ? logFrom : ats.length ? Math.min(...ats) : null;
+            const all = g.changeList(raw, more ? null : logOld, from);
+            // the buttons count what the other filters leave
+            const counts = g.changeCounts(g.changeFilter(all, Object.assign({}, logF, { cat: "" })));
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
+            setHtml($("logChips"), '<button type="button" class="chip" data-logcat="" aria-pressed="' + !logF.cat + '">All <span class="n">' + total + "</span></button>" +
+                g.CHANGE_CATS.map(([id, name]) => '<button type="button" class="chip" data-logcat="' + id + '" aria-pressed="' + (logF.cat === id) + '">' + esc(name) + ' <span class="n">' + (counts[id] || 0) + "</span></button>").join(""));
+            const people = Array.from(new Set(all.map(e => (e.by || "").toLowerCase()).filter(Boolean))).sort((a, b) => logPerson(a).localeCompare(logPerson(b)));
+            if (setHtml($("logWho"), '<option value="">Everyone</option>' + people.map(b => '<option value="' + esc(b) + '">' + esc(logPerson(b)) + "</option>").join(""))) $("logWho").value = logF.by;
+            const vs = new Map();
+            all.forEach(e => { if (e.vkey && !vs.has(e.vkey)) vs.set(e.vkey, e.vname || vName(e.vkey)); });
+            const vlist = Array.from(vs.entries()).sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true, sensitivity: "base" }));
+            if (setHtml($("logVehicle"), '<option value="">All vehicles</option>' + vlist.map(([k, n]) => '<option value="' + esc(k) + '">' + esc(n) + "</option>").join(""))) $("logVehicle").value = logF.vkey;
+            const list = g.changeFilter(all, logF);
+            const filtered = logF.cat || logF.by || logF.vkey || logF.q.trim();
+            $("logNote").hidden = !filtered;
+            $("logNote").textContent = filtered ? (list.length === 1 ? "1 change" : list.length + " changes") + " match" + (list.length === 1 ? "es" : "") + (more ? " in the newest " + logShown + ". Show older looks further back." : ".") : "";
+            setHtml(box, list.map(logEntryHtml).join("") + (!list.length ? empty(all.length ? "No changes match." : "Nothing changed in Garage yet.") : "") +
+                (more ? '<button type="button" class="btn sm ghost" data-log-more style="margin-top:8px">Show older changes</button>' : ""));
+        }
+        $("logChips").addEventListener("click", e => { const b = e.target.closest("[data-logcat]"); if (b) { logF.cat = b.dataset.logcat; render(); } });
+        $("logSearch").addEventListener("input", () => { logF.q = $("logSearch").value; render(); });
+        $("logWho").addEventListener("change", () => { logF.by = $("logWho").value; render(); });
+        $("logVehicle").addEventListener("change", () => { logF.vkey = $("logVehicle").value; render(); });
+        $("logList").addEventListener("click", e => { if (e.target.closest("[data-log-more]")) { logShown += LOG_MORE; listenChanges(); } });
+
         // ---------- A saved copy for opening with no signal ----------
         // Kept in this browser only, and only for the person who saw it; signing out deletes it.
         let copyTimer = null;
@@ -1416,7 +1538,9 @@
             if (!old.length) return;
             const u = {};
             old.forEach(id => { u[G.trash + "/" + id] = null; });
-            update(ref(db), u).catch(err => { purged = false; console.warn("Couldn't empty old trash", err); });
+            write(u, { cat: "trash", text: "Emptied " + (old.length === 1 ? "1 thing" : old.length + " things") + " from the Trash after " + g.TRASH_DAYS + " days (done by itself)",
+                before: short(old.map(id => trash[id] ? trashText(Object.assign({ tid: id }, trash[id])) : id).join(" · "), 300) })
+                .catch(err => { purged = false; console.warn("Couldn't empty old trash", err); });
         }
 
         // ---------- Install as an app ----------
@@ -1447,7 +1571,7 @@
 
         // ---------- Views ----------
         const tabs = Array.from(document.querySelectorAll(".tab"));
-        const PANELS = ["vehicles", "look", "oil", "categories", "trash"];
+        const PANELS = ["vehicles", "look", "oil", "categories", "trash", "changes"];
         const PANELS_FOR = () => fleet() ? PANELS : ["vehicles", "trash"];
         // Screen changes: which way the new screen slides in, and where it scrolls to (the top when going deeper, back
         // to where you were when going back)
@@ -1486,6 +1610,7 @@
             const hash = hashFor(v);
             if (push && location.hash !== hash) history_.pushState({ from: from }, "", hash);
             syncHistory();
+            syncChanges();
             render();
         }
         const history_ = window.history;
@@ -1559,6 +1684,7 @@
                 else if (view === "oil") renderOilPlan();
                 else if (view === "categories") renderCategories();
                 else if (view === "trash") renderTrash();
+                else if (view === "changes") renderChanges();
                 else renderVehicle(...vParts(view));
                 renderBack();
                 if ($("aiModal").classList.contains("show")) aiRender();
@@ -1653,8 +1779,11 @@
             const path = P.oilPlan + (isDef ? "/def" : "/vehicles/" + key);
             const text = (plan ? oilPlanText(cleanOilPlan(plan)) : "same as all vehicles");
             const name = isDef ? "All vehicles" : vName(key);
+            const own = isDef ? oilPlans.def : (oilPlans.vehicles || {})[key];
+            const was = own ? oilPlanText(cleanOilPlan(own)) : isDef ? "" : "same as all vehicles";
             try {
-                await write({ [path]: plan }, { vkey: isDef ? g.HISTORY_ALL : key, text: (isDef ? "Oil check for all vehicles: " : "Oil check: ") + text });
+                await write({ [path]: plan }, Object.assign({ vkey: isDef ? g.HISTORY_ALL : key, text: (isDef ? "Oil check for all vehicles: " : "Oil check: ") + text },
+                    was && was !== text ? { before: "Schedule: " + was, after: "Schedule: " + text } : {}));
                 toast(name + ": oil check " + text + ".");
             } catch (err) { toast("Couldn't save the oil check schedule: " + errMsg(err), true); }
             if (e.target.matches("input[type=number]")) e.target.blur();
@@ -1884,7 +2013,11 @@
             if (!ok) return;
             const u = {};
             list.forEach(o => oilClearWrites(u, o));
-            try { await write(u); seenHere(list); toast(list.length === 1 ? "Cleared." : list.length + " oil checks cleared."); }
+            try {
+                await write(u, { cat: "oil", text: "Cleared " + (list.length === 1 ? "1 oil check" : list.length + " oil checks") + " from Vehicle checks (" +
+                    short(list.slice(0, 5).map(o => empName(o.ek) + " " + fmtKey(dayKey(o.s.in))).join(", ") + (list.length > 5 ? ", …" : ""), 200) + ")" });
+                seenHere(list); toast(list.length === 1 ? "Cleared." : list.length + " oil checks cleared.");
+            }
             catch (err) { toast("Couldn't clear them: " + errMsg(err), true); }
         });
         document.addEventListener("click", async e => {
@@ -1908,7 +2041,7 @@
                 const o = findOil(oc.dataset.oilclear);
                 if (!o) return;
                 oc.disabled = true;
-                try { await write(oilClearWrites({}, o)); seenHere([o]); toast("Cleared. Search finds it again."); }
+                try { await write(oilClearWrites({}, o), { vkey: o.vkey, logOnly: true, text: "Cleared oil check from Vehicle checks (" + empName(o.ek) + ", " + fmtKey(dayKey(o.s.in)) + ")" }); seenHere([o]); toast("Cleared. Search finds it again."); }
                 catch (err) { toast("Couldn't clear it: " + errMsg(err), true); oc.disabled = false; }
                 return;
             }
@@ -1920,7 +2053,8 @@
                 const k = o.ek + "|" + o.s.id;
                 if (!shownShifts[k]) shownShifts[k] = o.s; // so it shows right away, even from older dates
                 try {
-                    await write({ [G.oilCleared + "/" + o.ek + "/" + o.s.id]: null, [G.oilShown + "/" + o.ek + "/" + o.s.id]: mark() });
+                    await write({ [G.oilCleared + "/" + o.ek + "/" + o.s.id]: null, [G.oilShown + "/" + o.ek + "/" + o.s.id]: mark() },
+                        { vkey: o.vkey, logOnly: true, text: "Brought back oil check to Vehicle checks (" + empName(o.ek) + ", " + fmtKey(dayKey(o.s.in)) + ")" });
                     toast("Brought back: " + empName(o.ek) + ", " + fmtKey(dayKey(o.s.in)) + ".");
                 } catch (err) { toast("Couldn't bring it back: " + errMsg(err), true); }
                 return;
@@ -1930,7 +2064,7 @@
                 const id = vrd.dataset.vanread;
                 if (!reports[id]) return;
                 vrd.disabled = true;
-                try { await write({ [G.problemReads + "/" + id]: mark() }); toast("Marked as read. It stays here until it's fixed."); }
+                try { await write({ [G.problemReads + "/" + id]: mark() }, { vkey: vanKey(reports[id].vehicleName || ""), logOnly: true, text: "Problem marked as read: " + short(reports[id].text, 80) }); toast("Marked as read. It stays here until it's fixed."); }
                 catch (err) { toast("Couldn't save: " + errMsg(err), true); vrd.disabled = false; }
                 return;
             }
@@ -2043,7 +2177,8 @@
             const unsent = !fix && !!problemSent[id];
             if (unsent) u[G.problemSent + "/" + id] = null;
             try {
-                await write(u, { vkey: vanKey(cur.vehicleName || ""), text: (fix ? "Fix note edited: " : "Problem edited: ") + short(val, 80) + " (was: " + short(was[field] || "empty", 80) + ")" });
+                await write(u, { vkey: vanKey(cur.vehicleName || ""), text: (fix ? "Fix note edited: " : "Problem edited: ") + short(val, 80) + " (was: " + short(was[field] || "empty", 80) + ")",
+                    before: (fix ? "What was done: " : "What's wrong: ") + (was[field] || "(empty)"), after: (fix ? "What was done: " : "What's wrong: ") + (val || "(empty)") });
                 toast("Saved. What it said before is kept on it." + (unsent ? " The Sent to chat check came off, since the chat has the old wording." : ""));
             } catch (err) { toast("Couldn't save: " + errMsg(err), true); }
         }
@@ -2153,6 +2288,7 @@
                     phRow('data-go="oil"', PI.drop, "Oil check schedule", "How often drivers check the oil") +
                     phRow('data-go="categories"', PI.list, "Categories", "The sections of Parts &amp; info") : "") +
                 phRow('data-go="trash"', PI.trash, "Trash", "Put deleted things back") +
+                (fleet() ? phRow('data-go="changes"', PI.clock, "Change log", "Every change anyone made, by kind") : "") +
                 (isAdmin() ? phRow('data-go="add"', PI.plus, "Add a vehicle", "") : "") +
                 phRow('data-go="export"', PI.down, "Export spreadsheet", "Everything, as a backup") + "</div>");
         }
@@ -2470,7 +2606,7 @@
             const path = G.vehicles + "/" + key + "/items/" + (id || push(ref(db, G.vehicles + "/" + key + "/items")).key);
             $("imSave").disabled = true;
             try {
-                await write(withName(key, { [path]: keepEdits(path, old, g.carryMarks(old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp()))), ["cat"].concat(g.ITEM_KEYS)) }), { vkey: key, text: (old ? "Changed " : "Added ") + itemText(c.value) });
+                await write(withName(key, { [path]: keepEdits(path, old, g.carryMarks(old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp()))), ["cat"].concat(g.ITEM_KEYS)) }), Object.assign({ vkey: key, text: (old ? "Changed " : "Added ") + itemText(c.value) }, changeSides("item", old, c.value, ["cat"].concat(g.ITEM_KEYS))));
                 closeModal("itemModal"); toast("Saved.");
             } catch (err) { $("imMsg").textContent = "Couldn't save: " + errMsg(err); }
             $("imSave").disabled = false;
@@ -2514,7 +2650,8 @@
             if (!fresh(editSvc, old, $("smMsg"))) return;
             const path = G.vehicles + "/" + key + "/service/" + (id || push(ref(db, G.vehicles + "/" + key + "/service")).key);
             const u = withName(key, { [path]: keepEdits(path, old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())), g.SERVICE_KEYS) });
-            const hist = [{ vkey: key, text: (old ? "Changed service: " : "Logged service: ") + c.value.what + ", " + fmtKey(c.value.day) + (typeof c.value.km === "number" ? ", " + g.fmtKm(c.value.km) : "") }];
+            const hist = [Object.assign({ vkey: key, text: (old ? "Changed service: " : "Logged service: ") + c.value.what + ", " + fmtKey(c.value.day) + (typeof c.value.km === "number" ? ", " + g.fmtKm(c.value.km) : "") },
+                changeSides("service", old, c.value, g.SERVICE_KEYS))];
             if (rem) {
                 const cur = (s.reminders || {})[rem.id];
                 const rp = G.vehicles + "/" + key + "/reminders/" + rem.id;
@@ -2575,7 +2712,7 @@
             const path = G.vehicles + "/" + key + "/reminders/" + (id || push(ref(db, G.vehicles + "/" + key + "/reminders")).key);
             $("rmSave").disabled = true;
             try {
-                await write(withName(key, { [path]: keepEdits(path, old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())), g.REMINDER_KEYS) }), { vkey: key, text: (old ? "Changed reminder: " : "Added reminder: ") + c.value.what });
+                await write(withName(key, { [path]: keepEdits(path, old, Object.assign(c.value, g.stamps(old, by(), serverTimestamp())), g.REMINDER_KEYS) }), Object.assign({ vkey: key, text: (old ? "Changed reminder: " : "Added reminder: ") + c.value.what }, changeSides("reminder", old, c.value, g.REMINDER_KEYS)));
                 closeModal("remModal"); toast("Saved.");
             } catch (err) { $("rmMsg").textContent = "Couldn't save: " + errMsg(err); }
             $("rmSave").disabled = false;
@@ -2601,7 +2738,7 @@
         async function saveKm(key, val) {
             const c = g.cleanOdo({ km: val });
             try {
-                await write(withName(key, { [G.vehicles + "/" + key + "/odo"]: { km: c.value.km, day: today(), at: serverTimestamp(), by: by() } }), { vkey: key, text: "Km updated to " + g.fmtKm(c.value.km) });
+                await write(withName(key, { [G.vehicles + "/" + key + "/odo"]: { km: c.value.km, day: today(), at: serverTimestamp(), by: by() } }), Object.assign({ vkey: key, text: "Km updated to " + g.fmtKm(c.value.km) }, km !== null ? { before: "Km: " + g.fmtKm(km), after: "Km: " + g.fmtKm(c.value.km) } : {}));
                 toast("Saved: " + g.fmtKm(c.value.km) + ".");
                 return true;
             } catch (err) { toast("Couldn't save: " + errMsg(err), true); return false; }
@@ -3000,7 +3137,7 @@
             const old = (cats.find(c => c.id === row.dataset.cat) || { name: "" }).name;
             if (!name) { toast("A category needs a name. To remove it, use the bin.", true); e.target.value = old; e.target.blur(); render(); return; }
             if (name === old) { e.target.blur(); return; }
-            try { await write({ [G.cats + "/" + row.dataset.cat + "/name"]: name }, { vkey: ALL, text: "Category " + old + " renamed to " + name }); toast("Renamed to " + name + "."); }
+            try { await write({ [G.cats + "/" + row.dataset.cat + "/name"]: name }, { vkey: ALL, text: "Category " + old + " renamed to " + name, before: "Name: " + old, after: "Name: " + name }); toast("Renamed to " + name + "."); }
             catch (err) { toast("Couldn't rename: " + errMsg(err), true); e.target.value = old; }
             e.target.blur(); render();
         });
@@ -3020,7 +3157,8 @@
                 [order[i], order[j]] = [order[j], order[i]];
                 const u = {};
                 order.forEach((id, n) => { u[G.cats + "/" + id + "/order"] = n; });
-                try { await write(u); } catch (err) { toast("Couldn't move it: " + errMsg(err), true); }
+                try { await write(u, { vkey: ALL, logOnly: true, text: "Categories reordered: " + cats[i].name + " moved " + (j < i ? "up" : "down"), before: "Order: " + cats.map(c => c.name).join(", "), after: "Order: " + order.map(id => (cats.find(c => c.id === id) || { name: id }).name).join(", ") }); }
+                catch (err) { toast("Couldn't move it: " + errMsg(err), true); }
                 return;
             }
             if (e.target.closest("[data-del-cat]")) {

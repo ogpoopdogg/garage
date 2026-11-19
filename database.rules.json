@@ -2,9 +2,8 @@
   "rules": {
     "garage": {
       ".read": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
-      ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
       "categories": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$cat": {
           ".validate": "$cat.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['name'])",
@@ -37,7 +36,7 @@
         }
       },
       "vehicles": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$vkey": {
           ".validate": "$vkey.matches(/^[a-z0-9]{1,60}$/)",
@@ -284,7 +283,7 @@
         }
       },
       "trash": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$tid": {
           ".write": "auth != null && root.child('staff').child(auth.uid).val() == true && ((!data.exists() && newData.child('kind').val() !== 'vehicle') || (!newData.exists() && data.child('id').val().length > 0 && ((data.child('kind').val() === 'item' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/items/' + data.child('id').val()).exists()) || (data.child('kind').val() === 'service' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/service/' + data.child('id').val()).exists()) || (data.child('kind').val() === 'reminder' && newData.parent().parent().child('vehicles/' + data.child('vkey').val() + '/reminders/' + data.child('id').val()).exists()))))",
@@ -316,7 +315,7 @@
         }
       },
       "history": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",
         "$vkey": {
           ".validate": "$vkey.matches(/^([a-z0-9]{1,60}|_all)$/)",
@@ -339,7 +338,7 @@
         }
       },
       "problem_edits": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/)",
           "$e": {
@@ -363,7 +362,7 @@
         }
       },
       "problem_reads": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at'])",
           "at": {
@@ -378,7 +377,7 @@
         }
       },
       "problem_sent": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at'])",
           "at": {
@@ -393,7 +392,7 @@
         }
       },
       "problem_cleared": {
-        ".write": "auth != null && root.child('staff').child(auth.uid).val() == true",
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
         "$rid": {
           ".validate": "$rid.matches(/^[A-Za-z0-9_-]{1,64}$/) && newData.hasChildren(['at']) && newData.parent().parent().parent().child('timeclock/van_reports/' + $rid + '/text').exists() && newData.parent().parent().parent().child('timeclock/van_reports/' + $rid + '/status').val() !== 'open'",
           "at": {
@@ -408,6 +407,7 @@
         }
       },
       "oil_cleared": {
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
         "$ek": {
           ".validate": "$ek.length <= 200 && newData.hasChildren()",
           "$sid": {
@@ -425,6 +425,7 @@
         }
       },
       "oil_shown": {
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com')",
         "$ek": {
           ".validate": "$ek.length <= 200 && newData.hasChildren()",
           "$sid": {
@@ -438,6 +439,39 @@
             "$other": {
               ".validate": false
             }
+          }
+        }
+      },
+      "changelog": {
+        "$id": {
+          ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true) && !data.exists() && newData.exists()",
+          ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['at', 'by', 'cat', 'text'])",
+          "at": {
+            ".validate": "newData.isNumber() && newData.val() === now"
+          },
+          "by": {
+            ".validate": "newData.isString() && newData.val() === auth.token.email"
+          },
+          "cat": {
+            ".validate": "newData.val() === 'vehicles' || newData.val() === 'parts' || newData.val() === 'service' || newData.val() === 'reminders' || newData.val() === 'problems' || newData.val() === 'oil' || newData.val() === 'categories' || newData.val() === 'trash' || newData.val() === 'other'"
+          },
+          "vkey": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{1,60}$/)"
+          },
+          "vname": {
+            ".validate": "newData.isString() && newData.val().length <= 60"
+          },
+          "text": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+          },
+          "before": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+          },
+          "after": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+          },
+          "$other": {
+            ".validate": false
           }
         }
       },
