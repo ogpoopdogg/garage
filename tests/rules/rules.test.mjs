@@ -231,13 +231,13 @@ test('staff get the rest of Garage too, the same as the admins', async () => {
   await assertFails(db.ref('garage/oil_shown/sam@ec,com/s1').set({ at: 1, by: 'sam@ec.com' }));
   await assertSucceeds(db.ref('garage/categories/x').set({ name: 'Brakes', order: 1 }));
   await assertSucceeds(db.ref('garage/vehicles/14').set({ name: '14', listed: true }));
-  await assertSucceeds(db.ref('garage/vehicles/12/removed').set(true));
+  await assertFails(db.ref('garage/vehicles/12/removed').set(true)); // only Justin removes vehicles
   // the same checks as for admins
   await assertFails(db.ref('garage/categories/bad id!').set({ name: 'Brakes' }));
   await assertFails(db.ref('garage/nothing_here').set(true));
 });
 
-test('staff and the Trash: the same as the admins, including vehicles and deleting for good', async () => {
+test('staff and the Trash: the same as the admins, including putting vehicles back and deleting for good', async () => {
   const db = await staff('sam@ec.com');
   const t = { at: 1, by: 'sam@ec.com', kind: 'item', vkey: '12', vname: '12', id: 'i1', data: item };
   await assertSucceeds(db.ref().update({ 'garage/vehicles/12/items/i1': null, 'garage/trash/t1': t }));
@@ -304,4 +304,33 @@ test('My vehicles (garage_personal/{uid}): only that staff member or admin reads
   await assertSucceeds(admin().ref('garage_personal/' + 'justin@ec.com'.replace(/[^a-z]/g, '') + '/vehicles/truck/name').set('Truck'));
   // an employee who isn't staff can't have one
   await assertFails(as('matt@ec.com').ref('garage_personal/' + 'matt@ec.com'.replace(/[^a-z]/g, '') + '/vehicles/car/name').set('Car'));
+});
+
+test('only justin@ec.com removes a company vehicle (or deletes one); everyone else still changes it and puts it back', async () => {
+  const seed = () => env.withSecurityRulesDisabled(ctx => ctx.database().ref('garage/vehicles/12').set({ name: '12', items: { i1: item } }));
+  const removal = (by) => ({ 'garage/vehicles/12': { name: '12', removed: true }, 'garage/trash/t1': { at: 1, by: by, kind: 'vehicle', vkey: '12', vname: '12', id: '', data: { name: '12', items: { i1: item } } } });
+  await seed();
+  const others = [as('desirae@ec.com'), as('celeste@ec.com'), await staff('sam@ec.com')];
+  for (const db of others) {
+    await assertFails(db.ref().update(removal('x@ec.com')));
+    await assertFails(db.ref('garage/vehicles/12/removed').set(true));
+    await assertFails(db.ref('garage/vehicles/12').remove());
+    await assertFails(db.ref('garage/vehicles').remove());
+    await assertFails(db.ref('garage').remove());
+    await assertFails(db.ref('garage/trash/t9').set({ at: 1, by: 'x@ec.com', kind: 'vehicle', vkey: '12', vname: '12', id: '', data: { name: '12' } }));
+    // but they still change it, add vehicles, delete entries, and use the rest of Garage
+    await assertSucceeds(db.ref('garage/vehicles/12/items/i2').set(item));
+    await assertSucceeds(db.ref('garage/vehicles/12/listed').set(true));
+    await assertSucceeds(db.ref('garage/vehicles/15').set({ name: '15', listed: true }));
+    await assertSucceeds(db.ref().update({ 'garage/vehicles/12/items/i2': null, 'garage/trash/t2': { at: 1, by: 'x@ec.com', kind: 'item', vkey: '12', vname: '12', id: 'i2', data: item } }));
+    await assertSucceeds(db.ref('garage/trash/t2').remove());
+    await assertSucceeds(db.ref('garage/categories/x').set({ name: 'Brakes', order: 1 }));
+  }
+  // the admins (not staff) still clear oil checks
+  await assertSucceeds(as('desirae@ec.com').ref('garage/oil_cleared/sam@ec,com/s1').set({ at: 1, by: 'desirae@ec.com' }));
+  await assertSucceeds(as('desirae@ec.com').ref('garage/oil_shown/sam@ec,com/s1').set({ at: 1, by: 'desirae@ec.com' }));
+  // Justin removes it; then anyone with Garage can put it back
+  await assertSucceeds(admin().ref().update(removal('justin@ec.com')));
+  await assertSucceeds(as('desirae@ec.com').ref().update({ 'garage/vehicles/12/removed': null, 'garage/vehicles/12/name': '12', 'garage/vehicles/12/items/i1': item, 'garage/trash/t1': null }));
+  await assertSucceeds(admin().ref('garage/vehicles/12').remove());
 });
