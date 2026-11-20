@@ -52,7 +52,7 @@ export function defaultCategories() {
 }
 
 // The longest text each field takes (database.rules.json checks the same numbers)
-export const MAX = { catName: 40, vname: 60, label: 60, value: 200, part: 80, link: 500, note: 500, what: 120, by: 100, problem: 1000, fixNote: 300, history: 300 };
+export const MAX = { catName: 40, vname: 60, label: 60, value: 200, part: 80, link: 500, note: 500, what: 120, by: 100, problem: Infinity, fixNote: Infinity, history: 300 }; // problems and fix notes: no limit
 export const KM_MAX = 10000000, COST_MAX = 1000000, EVERY_KM_MAX = 1000000, EVERY_MONTHS_MAX = 120;
 export const TRASH_DAYS = 30;                  // deleted things can be put back for this long
 export const SOON_DAYS = 14, SOON_KM = 1000;    // a service reminder is "due soon" this close to its date or km

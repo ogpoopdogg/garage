@@ -133,12 +133,13 @@ test('edit history: on entries, service and reminders, and garage/problem_edits;
   await assertSucceeds(db.ref('garage/vehicles/12/reminders/r1').set({ what: 'Oil change', dueKm: 190000, edits: { e1: { at: 5, was: { dueKm: 188000, note: 'x' } } } }));
   await assertSucceeds(db.ref('garage/problem_edits/-Nrep_1/e1').set({ at: 5, by: 'desirae@ec.com', was: { text: 'Light out' } }));
   await assertSucceeds(db.ref('garage/problem_edits/-Nrep_1/e2').set({ at: 6, by: 'desirae@ec.com', was: { fixNote: '' } }));
+  // problems have no length limit, so neither does what they said before
+  await assertSucceeds(db.ref('garage/problem_edits/-Nrep_1/e4').set({ at: 7, was: { text: 'x'.repeat(5000), fixNote: 'y'.repeat(5000) } }));
   // fields an entry doesn't have, no "was", nothing in it, too long, or something else saved
   await assertFails(db.ref('garage/vehicles/12/items/i1/edits/e2').set({ at: 5, was: { km: 1 } }));
   await assertFails(db.ref('garage/vehicles/12/service/s1/edits/e2').set({ at: 5, was: { label: 'x' } }));
   await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { status: 'open' } }));
   await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5 }));
-  await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { text: 'x'.repeat(1001) } }));
   await assertFails(db.ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { text: 'x' }, why: 'typo' }));
   await assertFails(db.ref('garage/problem_edits/bad id/e3').set({ at: 5, was: { text: 'x' } }));
   await assertFails(as('matt@ec.com').ref('garage/problem_edits/-Nrep_1/e3').set({ at: 5, was: { text: 'x' } }));
@@ -295,6 +296,8 @@ test('My vehicles (garage_personal/{uid}): only that staff member or admin reads
   // their own problems: report, mark fixed, edits, read mark; the same checks as van_reports
   await assertSucceeds(sam.ref(mine + '/problems/p1').set({ at: 1, ek: 'sam@ec,com', name: 'Sam', vehicleId: 'garage_civic', vehicleName: 'Civic', text: 'Brake light out', status: 'open' }));
   await assertSucceeds(sam.ref().update({ [mine + '/problems/p1/status']: 'fixed', [mine + '/problems/p1/fixNote']: 'New bulb', [mine + '/problems/p1/by']: 'sam@ec.com', [mine + '/problems/p1/doneAt']: 2 }));
+  await assertSucceeds(sam.ref(mine + '/problems/p3').set({ at: 1, ek: 'sam@ec,com', vehicleId: 'garage_civic', text: 'x'.repeat(5000), fixNote: 'y'.repeat(5000), status: 'fixed' }));
+  await assertFails(sam.ref(mine + '/problems/p4').set({ at: 1, ek: 'sam@ec,com', vehicleId: 'garage_civic', text: '', status: 'open' }));
   await assertSucceeds(sam.ref(mine + '/problem_reads/p1').set({ at: 1, by: 'sam@ec.com' }));
   await assertSucceeds(sam.ref(mine + '/problem_edits/p1/e1').set({ at: 1, by: 'sam@ec.com', was: { text: 'Light out' } }));
   await assertFails(sam.ref(mine + '/problems/p2').set({ text: 'No status' }));

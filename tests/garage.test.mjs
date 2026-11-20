@@ -10,6 +10,7 @@ import {
 import { editKeys, editWas, editList, editDrops, withEdit, ITEM_KEYS, SERVICE_KEYS, PROBLEM_KEYS, EDITS_MAX } from '../garage-core.js';
 import { problemMarks, problemUnread, oilMarks, mergeShifts, matchesAll, problemWords, monthWeeks, rangePick, dayOf } from '../garage-core.js';
 import { categoryFields, cleanFields, fieldsText, fieldNames, entryFields, entryTitle, hasContent } from '../garage-core.js';
+import { cleanProblem } from '../garage-core.js';
 
 // The time clock's vanKey (timeclock/tc-core.js): "Van 12", "van12" and "12" are the same vehicle
 const vanKey = name => String(name || '').toLowerCase().replace(/\b(?:van|vehicle)(?=\b|\d)/g, '').replace(/[^a-z0-9]/g, '');
@@ -521,4 +522,10 @@ test('change log: the log plus older Changes lines from before it started, newes
   assert.deepStrictEqual(changeFilter(list, { vkey: '12' }).length, 2);
   assert.deepStrictEqual(changeFilter(list, { q: 'oil vehicle' }).map(e => e.cat), ['oil']);
   assert.deepStrictEqual(changeCounts(list), { oil: 1, parts: 1, categories: 1, service: 1 });
+});
+
+test('problems have no length limit', () => {
+  const long = 'x'.repeat(5000);
+  assert.strictEqual(cleanProblem({ text: '  ' + long + '  ' }).value.text, long);
+  assert.strictEqual(cleanProblem({ text: '   ' }).ok, false);
 });

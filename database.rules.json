@@ -353,7 +353,7 @@
             "was": {
               ".validate": "newData.hasChildren()",
               "$f": {
-                ".validate": "$f.matches(/^(text|fixNote)$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                ".validate": "$f.matches(/^(text|fixNote)$/) && (newData.isNumber() || newData.isString())"
               }
             },
             "$other": {
@@ -795,13 +795,13 @@
               ".validate": "newData.isString() && newData.val().length <= 64"
             },
             "text": {
-              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 1000"
+              ".validate": "newData.isString() && newData.val().length > 0"
             },
             "status": {
               ".validate": "newData.val() === 'open' || newData.val() === 'fixed'"
             },
             "fixNote": {
-              ".validate": "newData.isString() && newData.val().length <= 300"
+              ".validate": "newData.isString()"
             },
             "by": {
               ".validate": "newData.isString() && newData.val().length <= 100"
@@ -828,7 +828,7 @@
               "was": {
                 ".validate": "newData.hasChildren()",
                 "$f": {
-                  ".validate": "$f.matches(/^(text|fixNote)$/) && (newData.isNumber() || (newData.isString() && newData.val().length <= 1000))"
+                  ".validate": "$f.matches(/^(text|fixNote)$/) && (newData.isNumber() || newData.isString())"
                 }
               },
               "$other": {

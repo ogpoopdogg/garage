@@ -424,6 +424,8 @@
         }
         .modal-backdrop.show { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity 0.3s var(--ease-out); }
         #askModal { z-index: 95; }
+        #askText { min-height: 150px; resize: none; overflow-y: auto; }
+        body.phone #askText { min-height: 170px; }
         .modal {
             width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; border-radius: 20px; padding: 22px;
             background: linear-gradient(180deg, #1b1f23, #141719); box-shadow: 0 0 0 1px var(--shoulder), 0 30px 80px rgba(0, 0, 0, 0.6);
@@ -1135,7 +1137,9 @@
             const box = o.multiline ? $("askText") : $("askInput");
             if (hasBox) {
                 $("askLabel").textContent = o.label; $("askLabel").htmlFor = box.id;
-                box.value = o.value || ""; box.placeholder = o.placeholder || ""; box.maxLength = o.max || 500;
+                box.value = o.value || ""; box.placeholder = o.placeholder || "";
+                const max = o.max === undefined ? 500 : o.max;
+                if (Number.isFinite(max)) box.maxLength = max; else box.removeAttribute("maxlength");
                 $("askInput").inputMode = o.number ? "numeric" : "text";
             }
             $("askOk").textContent = o.ok || "OK";
@@ -1143,6 +1147,7 @@
             // a second answer (no text box): resolves to "alt"
             $("askAlt").hidden = !o.alt; $("askAlt").textContent = o.alt || "";
             openModal("askModal");
+            if (hasBox && o.multiline) growAsk();
             return new Promise(resolve => {
                 askDone = v => { askDone = null; askCheck = null; resolve(v); };
                 askCheck = () => {
@@ -1156,6 +1161,13 @@
             });
         }
         let askCheck = null;
+        // The text box grows with what's typed (up to about half the screen, then it scrolls)
+        function growAsk() {
+            const t = $("askText");
+            t.style.height = "auto";
+            t.style.height = Math.min(t.scrollHeight + 2, Math.round((window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.55)) + "px";
+        }
+        $("askText").addEventListener("input", growAsk);
         $("askAlt").addEventListener("click", () => { const done = askDone; if (!done) return; closeModal("askModal", true); done("alt"); });
         $("askForm").addEventListener("submit", e => { e.preventDefault(); if (askCheck) askCheck(); });
 
