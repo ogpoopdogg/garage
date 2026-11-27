@@ -394,7 +394,7 @@ test('only justin@ec.com removes a company vehicle (or deletes one); everyone el
   await assertSucceeds(admin().ref('garage/vehicles/12').remove());
 });
 
-test('quick questions: admins and staff can save them, a name and question are needed, nothing else saved', async () => {
+test('quick questions: admins and staff can save them, a name and question are needed (any length), nothing else saved', async () => {
   await env.withSecurityRulesDisabled(ctx => ctx.database().ref('staff/sam').set(true));
   const q = { name: 'Brakes', text: 'Why do the brakes squeal?', order: 0 };
   await assertSucceeds(admin().ref('garage/ai_prompts/q1').set(q));
@@ -408,9 +408,8 @@ test('quick questions: admins and staff can save them, a name and question are n
   const db = admin();
   await assertFails(db.ref('garage/ai_prompts/x').set({ name: 'Brakes' }));
   await assertFails(db.ref('garage/ai_prompts/x').set({ name: '', text: 'x' }));
-  await assertFails(db.ref('garage/ai_prompts/x').set({ name: 'n'.repeat(31), text: 'x' }));
-  await assertFails(db.ref('garage/ai_prompts/x').set({ name: 'n', text: 't'.repeat(2001) }));
-  await assertSucceeds(db.ref('garage/ai_prompts/x').set({ name: 'n'.repeat(30), text: 't'.repeat(2000), order: 1 }));
+  await assertFails(db.ref('garage/ai_prompts/x').set({ name: 'n', text: '' }));
+  await assertSucceeds(db.ref('garage/ai_prompts/x').set({ name: 'n'.repeat(500), text: 't'.repeat(20000), order: 1 }));
   await assertFails(db.ref('garage/ai_prompts/x').set({ name: 'n', text: 't', extra: 1 }));
   await assertFails(db.ref('garage/ai_prompts/x/order').set('first'));
 });

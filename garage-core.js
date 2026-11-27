@@ -648,7 +648,6 @@ export const AI_QUESTIONS = [
 
 // Quick questions: the buttons under Ask AI's question box. Everyone shares one list in garage/ai_prompts/{id}
 // { name, text, order }, which admins and staff can change; until someone does, it's AI_QUESTIONS.
-export const AI_PROMPT_MAX = { name: 30, text: 2000 }; // database.rules.json checks the same numbers
 export const AI_PROMPT_IDS = ["q1", "q2", "q3"];       // AI_QUESTIONS' ids when they're first saved
 export function defaultAiPrompts() {
     const out = {};
@@ -663,9 +662,9 @@ export function aiPromptList(raw) {
         .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
     return list.length ? list : Object.entries(defaultAiPrompts()).map(([id, q]) => Object.assign({ id: id }, q));
 }
-// A quick question to save: { name, text } trimmed and cut to fit, or null when either is empty
+// A quick question to save: { name, text } trimmed (no length limit), or null when either is empty
 export function cleanAiPrompt(name, text) {
-    const n = String(name || "").trim().slice(0, AI_PROMPT_MAX.name), t = String(text || "").trim().slice(0, AI_PROMPT_MAX.text);
+    const n = String(name || "").trim(), t = String(text || "").trim();
     return n && t ? { name: n, text: t } : null;
 }
 

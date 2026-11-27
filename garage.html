@@ -370,7 +370,7 @@
             color: var(--orange); background: rgba(255, 159, 67, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 159, 67, 0.3); }
         .ai-missing span { flex: 1; min-width: 180px; }
         .ai-picks { margin: 0 0 10px; }
-        .ai-picks .chip { height: 32px; font-size: 0.9rem; }
+        .ai-picks .chip { height: auto; min-height: 32px; padding-top: 5px; padding-bottom: 5px; max-width: 100%; font-size: 0.9rem; text-align: left; overflow-wrap: anywhere; } /* a long name wraps */
         .ai-picks .chip.edit { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
         .ai-picks .chip.edit svg { width: 14px; height: 14px; }
         #aiQ { min-height: 92px; }
@@ -962,8 +962,8 @@
         <form class="modal" role="dialog" aria-modal="true" aria-labelledby="qTitle" id="qForm" novalidate>
             <h2 id="qTitle">Add a quick question</h2>
             <p class="modal-sub">Shows as a button in Ask AI for everyone. Tapping it puts the question in the box.</p>
-            <div class="field"><label for="qName">Button name</label><input class="input" id="qName" maxlength="30" placeholder="e.g. Brakes" autocomplete="off"></div>
-            <div class="field"><label for="qText">Question</label><textarea class="textarea" id="qText" maxlength="2000" placeholder="e.g. What could make the brakes squeal, and what should we check first?"></textarea></div>
+            <div class="field"><label for="qName">Button name</label><input class="input" id="qName" placeholder="e.g. Brakes" autocomplete="off"></div>
+            <div class="field"><label for="qText">Question</label><textarea class="textarea" id="qText" placeholder="e.g. What could make the brakes squeal, and what should we check first?"></textarea></div>
             <p class="modal-msg" id="qMsg" role="alert"></p>
             <div class="modal-foot">
                 <button type="button" class="btn danger" id="qDelete" hidden>Delete</button>

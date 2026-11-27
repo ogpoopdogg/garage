@@ -40,10 +40,10 @@
         "$id": {
           ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['name', 'text'])",
           "name": {
-            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 30"
+            ".validate": "newData.isString() && newData.val().length > 0"
           },
           "text": {
-            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 2000"
+            ".validate": "newData.isString() && newData.val().length > 0"
           },
           "order": {
             ".validate": "newData.isNumber()"

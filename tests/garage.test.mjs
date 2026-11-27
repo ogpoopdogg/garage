@@ -530,7 +530,7 @@ test('problems have no length limit', () => {
   assert.strictEqual(cleanProblem({ text: '   ' }).ok, false);
 });
 
-import { AI_QUESTIONS, AI_PROMPT_MAX, defaultAiPrompts, aiPromptList, cleanAiPrompt } from '../garage-core.js';
+import { AI_QUESTIONS, defaultAiPrompts, aiPromptList, cleanAiPrompt } from '../garage-core.js';
 
 test('quick questions: the starting three until some are saved, then the saved ones in order', () => {
     assert.deepStrictEqual(aiPromptList(null).map(q => q.name), AI_QUESTIONS.map(q => q.name));
@@ -541,11 +541,11 @@ test('quick questions: the starting three until some are saved, then the saved o
     assert.deepStrictEqual(aiPromptList({ c: { name: '', text: '' } }).map(q => q.id), ['q1', 'q2', 'q3']);
 });
 
-test('quick questions: a name and a question are both needed, cut to fit', () => {
+test('quick questions: a name and a question are both needed, any length', () => {
     assert.strictEqual(cleanAiPrompt(' ', 'x'), null);
     assert.strictEqual(cleanAiPrompt('x', ''), null);
     assert.deepStrictEqual(cleanAiPrompt(' Brakes ', ' Why? '), { name: 'Brakes', text: 'Why?' });
-    const q = cleanAiPrompt('n'.repeat(50), 't'.repeat(3000));
-    assert.strictEqual(q.name.length, AI_PROMPT_MAX.name);
-    assert.strictEqual(q.text.length, AI_PROMPT_MAX.text);
+    const q = cleanAiPrompt('n'.repeat(500), 't'.repeat(30000));
+    assert.strictEqual(q.name.length, 500);
+    assert.strictEqual(q.text.length, 30000);
 });
