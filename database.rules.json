@@ -35,6 +35,24 @@
           }
         }
       },
+      "ai_prompts": {
+        ".write": "auth != null && (auth.token.email.toLowerCase() === 'justin@ec.com' || auth.token.email.toLowerCase() === 'desirae@ec.com' || auth.token.email.toLowerCase() === 'celeste@ec.com' || root.child('staff').child(auth.uid).val() == true)",
+        "$id": {
+          ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,40}$/) && newData.hasChildren(['name', 'text'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 30"
+          },
+          "text": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 2000"
+          },
+          "order": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
       "vehicles": {
         ".write": "auth != null && auth.token.email.toLowerCase() === 'justin@ec.com'",
         ".read": "auth != null && root.child('staff').child(auth.uid).val() == true",

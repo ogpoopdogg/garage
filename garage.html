@@ -369,8 +369,14 @@
         .ai-missing { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 14px; border-radius: 12px; font-size: 0.92rem;
             color: var(--orange); background: rgba(255, 159, 67, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 159, 67, 0.3); }
         .ai-missing span { flex: 1; min-width: 180px; }
-        .ai-picks { margin: 8px 0 14px; }
-        .ai-picks .chip { height: 30px; font-size: 0.88rem; }
+        .ai-picks { margin: 0 0 10px; }
+        .ai-picks .chip { height: 32px; font-size: 0.9rem; }
+        .ai-picks .chip.edit { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+        .ai-picks .chip.edit svg { width: 14px; height: 14px; }
+        #aiQ { min-height: 92px; }
+        .ai-how { color: var(--dim); font-size: 0.85rem; margin: 8px 0 0; }
+        .ai-rare { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 calc(env(safe-area-inset-bottom, 0px) + 18px); }
+        .ai-rare .btn { flex: 1 1 140px; }
         .ai-parts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 6px 0 14px; }
         .ai-parts label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; background: rgba(255, 255, 255, 0.03); min-width: 0; }
         .ai-parts label span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -378,16 +384,11 @@
         .ai-parts .grp { grid-column: 1 / -1; font-weight: 600; margin-top: 4px; }
         .ai-parts p.grp { font-weight: 400; padding: 2px 8px; }
         .ai-parts .sub { grid-column: 1 / -1; margin-left: 22px; }
-        /* Ask AI's top: the title, Fill missing info with AI next to it, and the X (on a phone the button goes under the title) */
-        .ai-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; margin-bottom: 4px; }
+        /* Ask AI's top: the title and the X */
+        .ai-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-bottom: 10px; }
         .ai-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
         .ai-head .ai-x { width: 40px; height: 40px; margin: -6px -8px 0 0; align-self: start; }
         .ai-head .ai-x svg { width: 20px; height: 20px; }
-        @media (max-width: 620px) {
-            .ai-head { grid-template-columns: minmax(0, 1fr) auto; }
-            .ai-head .ai-x { grid-column: 2; grid-row: 1; }
-            .ai-head #aiFillBtn { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
-        }
         /* A value an AI filled in (tap to confirm it), and the check mark once someone has */
         .ai-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 5px; border: 0; border-radius: 5px; vertical-align: 1px;
             font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; cursor: pointer;
@@ -396,6 +397,14 @@
         .ai-tag:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
         .ok-mark { margin-left: 4px; color: var(--green); font-weight: 700; font-size: 0.85em; }
         .field label .ai-tag { cursor: default; }
+        /* Quick questions: each one's name and question (tap to change), with up / down */
+        .q-rows { display: grid; gap: 6px; }
+        .q-row { display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 4px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
+        .q-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 8px; border: 0; background: none; text-align: left; cursor: pointer; border-radius: 10px; }
+        .q-main:hover { background: rgba(255, 255, 255, 0.04); }
+        .q-name { font-weight: 600; }
+        .q-text { color: var(--muted); font-size: 0.88rem; overflow-wrap: anywhere; }
+        body.phone .q-row .icon-btn { width: 40px; height: 40px; }
         /* Paste the AI's answer: each value to fill in, with a box to leave it out */
         #fillModal .modal { width: min(640px, 100%); }
         #fillPaste { min-height: 90px; }
@@ -413,8 +422,11 @@
         .ai-preview { margin-bottom: 12px; }
         .ai-preview summary { cursor: pointer; color: var(--muted); font-size: 0.92rem; }
         .ai-preview .textarea { margin-top: 8px; min-height: 180px; font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        .ai-go { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .ai-go .btn { width: 100%; }
+        /* Gemini, ChatGPT, Claude and Copy in one row, right under the question box */
+        .ai-go { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; margin-top: 10px; }
+        .ai-go .btn { width: 100%; padding: 0 8px; }
+        .ai-go .ai-copy { width: 48px; padding: 0; }
+        .ai-go .ai-copy svg { width: 20px; height: 20px; }
 
         /* ---------- Modal ---------- */
         .modal-backdrop {
@@ -600,7 +612,6 @@
         body.phone .modal-foot .spacer { display: none; }
         body.phone .modal-foot .btn { height: 52px; }
         body.phone .modal-foot .btn.primary, body.phone .modal-foot .btn.danger:last-child { flex: 1; }
-        body.phone .ai-go { grid-template-columns: 1fr; }
         body.phone .ai-parts { grid-template-columns: 1fr; }
         body.phone .ai-parts label { min-height: 44px; }
         body.phone .cal-day { height: 46px; }
@@ -662,6 +673,10 @@
             <button type="button" class="tab" role="tab" data-tab="categories" aria-selected="false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
                 <span class="tab-text">Categories</span>
+            </button>
+            <button type="button" class="tab" role="tab" data-tab="prompts" aria-selected="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M5 19l2.5-2.5M16.5 7.5 19 5"/></svg>
+                <span class="tab-text">Quick questions</span>
             </button>
             <button type="button" class="tab" role="tab" data-tab="trash" aria-selected="false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
@@ -745,6 +760,17 @@
                 </form>
             </div>
             <div class="card"><h3>Changes</h3><p class="hint" style="margin-bottom:8px">Changes to the categories, and to the oil check schedule for all vehicles.</p><div id="allHistCat"></div></div>
+        </section>
+
+        <!-- Quick questions: the buttons under Ask AI's question box, one list for everyone -->
+        <section class="panel" id="panel-prompts" role="tabpanel" hidden>
+            <div class="panel-head">
+                <div><h1 class="panel-title">Quick questions</h1><p class="panel-sub">The buttons in Ask AI. Tapping one puts its question in the box. Everyone sees the same ones.</p></div>
+            </div>
+            <div class="card">
+                <div class="q-rows" id="qRows"></div>
+                <button type="button" class="btn primary" id="qAdd" style="margin-top:12px">+ Add a quick question</button>
+            </div>
         </section>
 
         <!-- Trash -->
@@ -905,27 +931,45 @@
         </div>
     </div>
 
-    <!-- Ask AI: the question and the vehicle's records, copied, then the AI opens -->
+    <!-- Ask AI: the question and the vehicle's records, copied, then the AI opens.
+         Quick questions, the box and the AI buttons sit together at the top, so nothing needs scrolling after typing;
+         what gets sent comes under them, and Fill missing info (rarely used) at the very bottom. -->
     <div class="modal-backdrop" id="aiModal">
         <form class="modal" role="dialog" aria-modal="true" aria-labelledby="aiTitle" id="aiForm" novalidate>
             <div class="ai-head">
                 <h2 id="aiTitle">Ask AI</h2>
-                <button type="button" class="btn sm primary" id="aiFillBtn" title="Writes a question asking the AI for everything this vehicle is missing in every category">Fill missing info with AI</button>
                 <button type="button" class="icon-btn ai-x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
             </div>
-            <p class="modal-sub">Copies your question with this vehicle's records, then opens the AI. Paste it there: long-press the box and tap Paste, or Ctrl+V on a computer.</p>
-            <div id="aiMissing"></div>
-            <div class="field"><label for="aiQ">Your question</label><textarea class="textarea" id="aiQ" maxlength="20000" placeholder="e.g. What could make the brakes squeal?"></textarea></div>
             <div class="chips ai-picks" id="aiPicks"></div>
+            <textarea class="textarea" id="aiQ" maxlength="20000" placeholder="Type a question or tap one above" aria-label="Your question"></textarea>
+            <div class="ai-go" id="aiGo"></div>
+            <p class="ai-how">Copies it with this vehicle's records. Paste it in the AI (long-press, Paste).</p>
+            <p class="modal-msg" id="aiMsg" role="alert"></p>
+            <div id="aiMissing"></div>
             <div class="label">What to send</div>
             <div class="ai-parts" id="aiParts"></div>
             <details class="ai-preview" id="aiPreview"><summary>See what gets sent <span id="aiCount"></span></summary><textarea class="textarea" id="aiText" readonly aria-label="What gets sent"></textarea></details>
-            <p class="modal-msg" id="aiMsg" role="alert"></p>
-            <div class="label" style="margin-bottom:6px">Copy and open</div>
-            <div class="ai-go" id="aiGo"></div>
-            <div class="modal-foot" style="margin-top:14px">
-                <button type="button" class="btn ghost" id="aiCopy">Copy only</button>
+            <div class="label">Rarely used</div>
+            <div class="ai-rare">
+                <button type="button" class="btn ghost" id="aiFillBtn" title="Writes a question asking the AI for everything this vehicle is missing in every category">Fill missing info</button>
                 <button type="button" class="btn ghost" id="aiPasteBtn" title="Paste the AI's answer to Fill missing info, check it and fill in the fields">Save AI answer</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Add or change a quick question (the buttons under Ask AI's question box) -->
+    <div class="modal-backdrop" id="qModal">
+        <form class="modal" role="dialog" aria-modal="true" aria-labelledby="qTitle" id="qForm" novalidate>
+            <h2 id="qTitle">Add a quick question</h2>
+            <p class="modal-sub">Shows as a button in Ask AI for everyone. Tapping it puts the question in the box.</p>
+            <div class="field"><label for="qName">Button name</label><input class="input" id="qName" maxlength="30" placeholder="e.g. Brakes" autocomplete="off"></div>
+            <div class="field"><label for="qText">Question</label><textarea class="textarea" id="qText" maxlength="2000" placeholder="e.g. What could make the brakes squeal, and what should we check first?"></textarea></div>
+            <p class="modal-msg" id="qMsg" role="alert"></p>
+            <div class="modal-foot">
+                <button type="button" class="btn danger" id="qDelete" hidden>Delete</button>
+                <span class="spacer"></span>
+                <button type="button" class="btn ghost" data-close>Cancel</button>
+                <button type="submit" class="btn primary" id="qSave">Save</button>
             </div>
         </form>
     </div>
@@ -934,7 +978,7 @@
     <div class="modal-backdrop" id="fillModal">
         <form class="modal" role="dialog" aria-modal="true" aria-labelledby="fillTitle" id="fillForm" novalidate>
             <h2 id="fillTitle">Save AI answer</h2>
-            <p class="modal-sub">Paste the AI's whole answer to <b>Fill missing info with AI</b>. Garage only fills in fields that are empty, and each one is marked <span class="ai-tag">AI</span> until someone taps it and confirms it's right.</p>
+            <p class="modal-sub">Paste the AI's whole answer to <b>Fill missing info</b>. Garage only fills in fields that are empty, and each one is marked <span class="ai-tag">AI</span> until someone taps it and confirms it's right.</p>
             <div class="field"><label for="fillPaste">The AI's answer</label><textarea class="textarea" id="fillPaste" placeholder="Long-press and tap Paste, or Ctrl+V"></textarea></div>
             <div id="fillOut"></div>
             <p class="modal-msg" id="fillMsg" role="alert"></p>
@@ -1000,7 +1044,7 @@
         // vehicles, trash and history point at garage_personal/{uid}/... while someone looks at My vehicles (see setMode)
         const G = { cats: "garage/categories", vehicles: "garage/vehicles", trash: "garage/trash", history: "garage/history", problemEdits: "garage/problem_edits",
             problemReads: "garage/problem_reads", problemSent: "garage/problem_sent", problemCleared: "garage/problem_cleared", oilCleared: "garage/oil_cleared", oilShown: "garage/oil_shown",
-            changelog: "garage/changelog" }; // the Change log is the company garage only (My vehicles are private), so it never moves
+            changelog: "garage/changelog", prompts: "garage/ai_prompts" }; // the Change log is the company garage only (My vehicles are private), so it never moves
         // Garage lists the vehicles in RouteWatcher (GPS), the time clock's vans (Admin → Vehicles → Vehicles without GPS)
         // and the ones added here. Everything is still kept by the vehicle's name, never by a GPS unit.
         // false would leave the RouteWatcher vehicles out.
@@ -1016,6 +1060,7 @@
         // ---------- State ----------
         let user = null, role = null, serverOffset = 0, unsubs = [], shiftUnsubs = {}, histUnsub = null, histKey = null;
         let problemReads = {}, problemSent = {}, problemCleared = {}, oilCleared = {}, oilShown = {}, shownShifts = {};
+        let aiPromptsRaw = null, aiPrompts = g.aiPromptList(null); // the quick questions in Ask AI (garage/ai_prompts)
         let cats = [], catsRaw = null, stored = {}, reports = {}, problemEdits = {}, oilPlans = {}, oilLast = {}, employees = {}, shiftsByEk = {}, trash = {}, history = [];
         let gpsRaw = null, vansRaw = {}, vehicles = [];
         let loaded = {}, loadErr = null, savedCopyAt = 0, connected = false, everConnected = false, signedInAt = 0;
@@ -1061,6 +1106,7 @@
         const today = () => dayKey(now());
         const short = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
         const ICON = {
+            copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
             edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
             up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>',
             down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
@@ -1191,6 +1237,7 @@
         }
         function clearData() {
             problemReads = {}; problemSent = {}; problemCleared = {}; oilCleared = {}; oilShown = {}; shownShifts = {}; oilRange = null;
+            aiPromptsRaw = null; aiPrompts = g.aiPromptList(null);
             cats = []; catsRaw = null; stored = {}; reports = {}; problemEdits = {}; oilPlans = {}; oilLast = {}; employees = {}; shiftsByEk = {}; trash = {}; history = [];
             gpsRaw = null; vansRaw = {}; vehicles = []; loaded = {}; loadErr = null; savedCopyAt = 0;
         }
@@ -1249,7 +1296,7 @@
         function applyRole() {
             const a = isAdmin();
             const f = fleet();
-            document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"], .tab[data-tab="changes"]').forEach(b => { b.hidden = !f; });
+            document.querySelectorAll('.tab[data-tab="look"], .tab[data-tab="oil"], .tab[data-tab="categories"], .tab[data-tab="prompts"], .tab[data-tab="changes"]').forEach(b => { b.hidden = !f; });
             $("addVehicleBtn").hidden = !a;
             $("oilClearAll").hidden = !isBoss();
             document.body.classList.toggle("mine", personal);
@@ -1302,6 +1349,12 @@
                 cats = g.sortCategories(catsRaw);
             });
             sub("garage", ref(db, G.vehicles), s => { stored = s.val() || {}; syncVehicles(); });
+            // The quick questions: if they can't be read (rules not published yet), Ask AI keeps the starting ones
+            unsubs.push(onValue(ref(db, G.prompts), s => {
+                aiPromptsRaw = s.val(); aiPrompts = g.aiPromptList(aiPromptsRaw);
+                if ($("aiModal").classList.contains("show")) renderAiPicks();
+                render();
+            }, err => console.warn("Couldn't load the quick questions (are the newest database rules published?)", err)));
             sub("trash", ref(db, G.trash), s => { trash = s.val() || {}; purgeTrash(); });
             syncHistory();
             // Problems are on both sides: the time clock's van_reports, or the person's own (garage_personal/{uid}/problems)
@@ -1591,7 +1644,7 @@
 
         // ---------- Views ----------
         const tabs = Array.from(document.querySelectorAll(".tab"));
-        const PANELS = ["vehicles", "look", "oil", "categories", "trash", "changes"];
+        const PANELS = ["vehicles", "look", "oil", "categories", "prompts", "trash", "changes"];
         const PANELS_FOR = () => fleet() ? PANELS : ["vehicles", "trash"];
         // Screen changes: which way the new screen slides in, and where it scrolls to (the top when going deeper, back
         // to where you were when going back)
@@ -1703,6 +1756,7 @@
                 else if (view === "look") renderLook(look);
                 else if (view === "oil") renderOilPlan();
                 else if (view === "categories") renderCategories();
+                else if (view === "prompts") renderPrompts();
                 else if (view === "trash") renderTrash();
                 else if (view === "changes") renderChanges();
                 else renderVehicle(...vParts(view));
@@ -2306,7 +2360,8 @@
             setHtml($("phoneHome"), '<div class="ph-rows">' +
                 (fleet() ? phRow('data-go="look"', PI.warn, "Vehicle checks", n ? n + " new" : "Problems drivers reported, and oil checks") +
                     phRow('data-go="oil"', PI.drop, "Oil check schedule", "How often drivers check the oil") +
-                    phRow('data-go="categories"', PI.list, "Categories", "The sections of Parts &amp; info") : "") +
+                    phRow('data-go="categories"', PI.list, "Categories", "The sections of Parts &amp; info") +
+                    phRow('data-go="prompts"', PI.spark, "Quick questions", "The buttons in Ask AI") : "") +
                 phRow('data-go="trash"', PI.trash, "Trash", "Put deleted things back") +
                 (fleet() ? phRow('data-go="changes"', PI.clock, "Change log", "Every change anyone made, by kind") : "") +
                 (isAdmin() ? phRow('data-go="add"', PI.plus, "Add a vehicle", "") : "") +
@@ -2865,9 +2920,9 @@
             const saved = aiSaved(), s = stored[key] || {};
             const parts = g.aiParts(cats, g.itemGroups(s.items, cats).some(gr => !gr.cat.id), lookData().vans.filter(r => r.vkey === key));
             const off = new Set(saved.off || parts.filter(p => !p.on).map(p => p.key));
-            $("aiTitle").textContent = "Ask AI about " + vName(key);
+            $("aiTitle").textContent = "Ask AI · " + vName(key);
             $("aiQ").value = ""; $("aiMsg").textContent = "";
-            $("aiPicks").innerHTML = g.AI_QUESTIONS.map((q, i) => '<button type="button" class="chip" data-aiq="' + i + '">' + esc(q.name) + "</button>").join("");
+            renderAiPicks();
             // Each problem has its own box, under Open problems or Fixed problems (which check or uncheck all of theirs)
             const box = p => '<label' + (p.group ? ' class="sub" title="' + esc(p.name) + '"' : "") + '><input type="checkbox" data-part="' + esc(p.key) + '"' +
                 (p.group ? ' data-in="' + p.group + '"' : "") + (off.has(p.key) ? "" : " checked") + "><span>" +
@@ -2882,7 +2937,8 @@
             }
             setHtml($("aiParts"), html);
             const last = g.AI_TARGETS.some(t => t.key === saved.target) ? saved.target : "gemini";
-            setHtml($("aiGo"), g.AI_TARGETS.map(t => '<button type="button" class="btn' + (t.key === last ? " primary" : "") + '" data-ai="' + t.key + '">' + esc(t.name) + "</button>").join(""));
+            setHtml($("aiGo"), g.AI_TARGETS.map(t => '<button type="button" class="btn' + (t.key === last ? " primary" : "") + '" data-ai="' + t.key + '">' + esc(t.name) + "</button>").join("") +
+                '<button type="button" class="btn ai-copy" id="aiCopy" aria-label="Copy only" title="Copy only (no AI opens)">' + ICON.copy + "</button>");
             $("aiPreview").open = false;
             aiRender();
             openModal("aiModal");
@@ -2959,13 +3015,22 @@
             if (aiKey) {
                 $("aiQ").value = g.fillPrompt(vName(aiKey), stored[aiKey] || {}, cats);
                 aiRender();
+                $("aiForm").scrollTo({ top: 0, behavior: "smooth" }); // up to the box and the AI buttons
                 toast("Question added. Copy it to the AI, then bring its answer back with Save AI answer.");
             }
         });
+        // The quick questions over the box (everyone's shared list), and ✎ Edit to change them
+        function renderAiPicks() {
+            const edit = fleet() && isAdmin();
+            setHtml($("aiPicks"), aiPrompts.map(q => '<button type="button" class="chip" data-aiq="' + esc(q.id) + '" title="' + esc(q.text) + '">' + esc(q.name) + "</button>").join("") +
+                (edit ? '<button type="button" class="chip edit" id="aiEditQs" aria-label="Change the quick questions">' + ICON.edit + "Edit</button>" : ""));
+        }
         $("aiPicks").addEventListener("click", e => {
+            if (e.target.closest("#aiEditQs")) { closeModal("aiModal"); go("prompts", true); return; }
             const b = e.target.closest("[data-aiq]");
-            if (!b) return;
-            $("aiQ").value = g.AI_QUESTIONS[Number(b.dataset.aiq)].text;
+            const q = b && aiPrompts.find(x => x.id === b.dataset.aiq);
+            if (!q) return;
+            $("aiQ").value = q.text;
             aiRender();
         });
         $("aiParts").addEventListener("change", e => {
@@ -2975,8 +3040,11 @@
             aiRender();
         });
         $("aiMissing").addEventListener("click", e => { if (e.target.closest("#aiAddModel") && aiKey) addModel(aiKey); });
-        $("aiGo").addEventListener("click", e => { const b = e.target.closest("[data-ai]"); if (b) aiSend(g.AI_TARGETS.find(t => t.key === b.dataset.ai)); });
-        $("aiCopy").addEventListener("click", () => aiSend(null));
+        $("aiGo").addEventListener("click", e => {
+            if (e.target.closest("#aiCopy")) { aiSend(null); return; }
+            const b = e.target.closest("[data-ai]");
+            if (b) aiSend(g.AI_TARGETS.find(t => t.key === b.dataset.ai));
+        });
         $("aiPasteBtn").addEventListener("click", () => { if (aiKey) { closeModal("aiModal"); openFill(aiKey); } });
 
         // ---------- Fill missing info: the AI's answer pasted back ----------
@@ -3129,6 +3197,77 @@
             u[G.trash + "/" + tid] = null;
             try { await write(u, { vkey: t.vkey, text: "Put back from the Trash: " + trashText(t) }); toast("Put back."); }
             catch (err) { toast("Couldn't put it back: " + errMsg(err), true); }
+        });
+
+        // ---------- Quick questions (Ask AI's buttons) ----------
+        // One list for everyone in garage/ai_prompts. Until someone changes it, it's the three starting questions, and
+        // the first change saves those too (so they can be edited or deleted like the rest). At least one stays.
+        function renderPrompts() {
+            const box = $("qRows");
+            setHtml(box, aiPrompts.map((q, i) => '<div class="q-row" data-q="' + esc(q.id) + '">' +
+                '<button type="button" class="q-main" data-edit-q><span class="q-name">' + esc(q.name) + '</span><span class="q-text">' + esc(short(q.text, 140)) + "</span></button>" +
+                '<button type="button" class="icon-btn" data-move="-1" aria-label="Move up"' + (i ? "" : " disabled") + ">" + ICON.up + "</button>" +
+                '<button type="button" class="icon-btn" data-move="1" aria-label="Move down"' + (i < aiPrompts.length - 1 ? "" : " disabled") + ">" + ICON.down + "</button>" +
+                '<button type="button" class="icon-btn" data-edit-q aria-label="Change ' + esc(q.name) + '">' + ICON.edit + "</button></div>").join(""));
+        }
+        // The writes that save the starting questions first, when nothing is saved yet
+        const promptBase = () => {
+            const u = {};
+            if (!g.aiPromptList(aiPromptsRaw).some(q => aiPromptsRaw && aiPromptsRaw[q.id])) for (const [id, q] of Object.entries(g.defaultAiPrompts())) u[G.prompts + "/" + id] = q;
+            return u;
+        };
+        let editQ = null; // the quick question being changed (null: a new one)
+        function openPrompt(q) {
+            editQ = q || null;
+            $("qTitle").textContent = q ? "Change " + q.name : "Add a quick question";
+            $("qName").value = q ? q.name : ""; $("qText").value = q ? q.text : ""; $("qMsg").textContent = "";
+            $("qDelete").hidden = !q;
+            openModal("qModal");
+        }
+        $("qAdd").addEventListener("click", () => openPrompt(null));
+        $("qRows").addEventListener("click", async e => {
+            const row = e.target.closest("[data-q]");
+            if (!row) return;
+            const i = aiPrompts.findIndex(q => q.id === row.dataset.q);
+            if (i < 0) return;
+            if (e.target.closest("[data-edit-q]")) { openPrompt(aiPrompts[i]); return; }
+            const mv = e.target.closest("[data-move]");
+            if (!mv) return;
+            const j = i + Number(mv.dataset.move);
+            if (j < 0 || j >= aiPrompts.length) return;
+            const order = aiPrompts.map(q => q.id);
+            [order[i], order[j]] = [order[j], order[i]];
+            const u = promptBase();
+            order.forEach((id, n) => { if (u[G.prompts + "/" + id]) u[G.prompts + "/" + id].order = n; else u[G.prompts + "/" + id + "/order"] = n; });
+            try { await write(u, { vkey: ALL, cat: "other", logOnly: true, text: "Quick question " + aiPrompts[i].name + " moved " + (j < i ? "up" : "down") }); }
+            catch (err) { toast("Couldn't move it: " + errMsg(err), true); }
+        });
+        $("qForm").addEventListener("submit", async e => {
+            e.preventDefault();
+            const q = g.cleanAiPrompt($("qName").value, $("qText").value);
+            if (!q) { $("qMsg").textContent = "Give it a button name and a question."; return; }
+            const old = editQ;
+            if (aiPrompts.some(x => x.name.toLowerCase() === q.name.toLowerCase() && (!old || x.id !== old.id))) { $("qMsg").textContent = "There's already a quick question called " + q.name + "."; return; }
+            const u = promptBase();
+            const id = old ? old.id : push(ref(db, G.prompts)).key;
+            u[G.prompts + "/" + id] = { name: q.name, text: q.text, order: old ? old.order : aiPrompts.length ? Math.max(...aiPrompts.map(x => x.order)) + 1 : 0 };
+            const hist = old ? Object.assign({ vkey: ALL, cat: "other", text: "Quick question " + (old.name === q.name ? q.name + " changed" : old.name + " renamed to " + q.name) },
+                g.beforeAfter([["Name", old.name, q.name], ["Question", old.text, q.text]])) : { vkey: ALL, cat: "other", text: "Quick question " + q.name + " added" };
+            $("qSave").disabled = true;
+            try { await write(u, hist); closeModal("qModal"); toast(old ? "Saved." : q.name + " added."); }
+            catch (err) { $("qMsg").textContent = "Couldn't save: " + errMsg(err); }
+            finally { $("qSave").disabled = false; }
+        });
+        $("qDelete").addEventListener("click", async () => {
+            const q = editQ;
+            if (!q) return;
+            if (aiPrompts.length === 1) { $("qMsg").textContent = "Keep at least one quick question. Change this one instead."; return; }
+            if (await ask({ title: "Delete the quick question " + q.name + "?", danger: true, ok: "Delete", sub: "It goes for everyone." }) === null) return;
+            const u = promptBase();
+            delete u[G.prompts + "/" + q.id];
+            u[G.prompts + "/" + q.id] = null;
+            try { await write(u, { vkey: ALL, cat: "other", text: "Quick question " + q.name + " deleted", before: "Question: " + q.text }); closeModal("qModal"); toast(q.name + " deleted."); }
+            catch (err) { $("qMsg").textContent = "Couldn't delete: " + errMsg(err); }
         });
 
         // ---------- Categories ----------

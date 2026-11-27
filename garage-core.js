@@ -646,6 +646,29 @@ export const AI_QUESTIONS = [
     { name: "Recalls and common issues", text: "What are the common problems and any recalls for this vehicle? Use the VIN if it's below." }
 ];
 
+// Quick questions: the buttons under Ask AI's question box. Everyone shares one list in garage/ai_prompts/{id}
+// { name, text, order }, which admins and staff can change; until someone does, it's AI_QUESTIONS.
+export const AI_PROMPT_MAX = { name: 30, text: 2000 }; // database.rules.json checks the same numbers
+export const AI_PROMPT_IDS = ["q1", "q2", "q3"];       // AI_QUESTIONS' ids when they're first saved
+export function defaultAiPrompts() {
+    const out = {};
+    AI_QUESTIONS.forEach((q, i) => { out[AI_PROMPT_IDS[i]] = { name: q.name, text: q.text, order: i }; });
+    return out;
+}
+// [{ id, name, text, order }] in order; AI_QUESTIONS when nothing is saved (or none of it is usable)
+export function aiPromptList(raw) {
+    const list = Object.entries(raw || {})
+        .filter(([, q]) => q && String(q.name || "").trim() && String(q.text || "").trim())
+        .map(([id, q]) => ({ id: id, name: String(q.name).trim(), text: String(q.text).trim(), order: typeof q.order === "number" ? q.order : 999 }))
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+    return list.length ? list : Object.entries(defaultAiPrompts()).map(([id, q]) => Object.assign({ id: id }, q));
+}
+// A quick question to save: { name, text } trimmed and cut to fit, or null when either is empty
+export function cleanAiPrompt(name, text) {
+    const n = String(name || "").trim().slice(0, AI_PROMPT_MAX.name), t = String(text || "").trim().slice(0, AI_PROMPT_MAX.text);
+    return n && t ? { name: n, text: t } : null;
+}
+
 // Where the text goes. None of them fills its box from a link for this much text, so it's copied and pasted.
 export const AI_TARGETS = [
     { key: "gemini", name: "Gemini", url: "https://gemini.google.com/app" },
